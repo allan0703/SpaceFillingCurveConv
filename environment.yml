@@ -1,4 +1,4 @@
-name: z-convs-env
+name: sfc-convs-env
 channels:
   - pytorch
   - conda-forge
