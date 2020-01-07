@@ -62,7 +62,7 @@ def train(config, model_dir, writer):
     model = res.resnet101(input_size=config['input_size'], num_classes=config['num_classes'],
                           kernel_size=config['kernel_size']).to(device)
 
-    # if use multi_gou then convert the model to DataParallel
+    # if use multi_gpu then convert the model to DataParallel
     if config['multi_gpu']:
         model = nn.DataParallel(model)
 
@@ -224,9 +224,9 @@ if __name__ == '__main__':
     parser = ArgumentParser(description='Train a point cloud classification network using 1D convs and hilbert order.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('--root_dir', required=True, type=str,
+    parser.add_argument('--root_dir', type=str, default='/data/sfc/modelnet40',
                         help='root directory containing ModelNet40 data')
-    parser.add_argument('--model_dir', required=True, type=str,
+    parser.add_argument('--model_dir', type=str, default='log/',
                         help='root directory containing ModelNet40 data')
     parser.add_argument('--multi_gpu', default=False, action='store_true',
                         help='use multiple GPUs (all available)')

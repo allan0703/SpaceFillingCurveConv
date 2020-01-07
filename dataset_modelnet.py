@@ -102,11 +102,15 @@ class ModelNet40(Dataset):
         self.phase = phase
         self.augment = augment
         self.data, self.label = load_data(root_dir=root_dir, phase=phase)
-        self.p = 7
+        self.p = 7  # hilbert iteration
+        # by changing the value of p, we can control the level of hilbert curve.
+        # this hyperparameter has to be careful and ideally, p should be different for each point cloud.
+        # (because the density distribution is different
 
         # compute hilbert order for voxelized space
         logging.info('Computing hilbert distances...')
         self.hilbert_curve = HilbertCurve(self.p, 3)
+        # different from voxelization, we are much more efficient
 
     def __len__(self):
         return self.data.shape[0]
@@ -121,6 +125,7 @@ class ModelNet40(Dataset):
             # pointcloud = translate_pointcloud(pointcloud)
             pointcloud = scale_pointcloud(pointcloud)
             # pointcloud = shear_pointcloud(pointcloud)
+            # todo: check if it is because of augmentation being too big.
 
         # normalize points
         points_norm = pointcloud - pointcloud.min(axis=0)
@@ -129,7 +134,14 @@ class ModelNet40(Dataset):
         # order points in hilbert order
         points_voxel = np.floor(points_norm * (2 ** self.p - 1))
         hilbert_dist = np.zeros(points_voxel.shape[0])
+
+        # todo: we want to try two methods.
+        # todo: 1. globally along with locally hilbert curve
+        # todo: 2. multi-level of hilbert curve
+
         for i in range(points_voxel.shape[0]):
+            # by doing the astype int, it will assign the same hilbert_dist to the points that belong to the same space
+            # todo: check how much overlapping (multi-points in the same space)
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :].astype(int))
         idx = np.argsort(hilbert_dist)
 
