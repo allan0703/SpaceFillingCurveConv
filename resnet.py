@@ -111,6 +111,7 @@ class ResNet(nn.Module):
 
         self.inplanes = 64
         self.dilation = 1
+        self.dropout = 0.5
 
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -125,7 +126,7 @@ class ResNet(nn.Module):
                                bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
+        self.maxpool1 = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
         self.layer1 = self._make_layer(block, 64, layers[0], k=k)
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[0])
@@ -134,7 +135,14 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self.maxpool2 = nn.AdaptiveMaxPool1d(1)
+        # expand fc layers.
+        # self.fc = nn.Linear(512 * block.expansion * 2, num_classes)
+        self.fc = nn.Sequential(nn.Linear(512 * block.expansion * 2, 512), norm_layer(512), nn.ReLU(inplace=True),
+                                nn.Dropout(p=self.dropout),
+                                nn.Linear(512, 128), norm_layer(128), nn.ReLU(inplace=True),
+                                nn.Dropout(p=self.dropout),
+                                nn.Linear(128, num_classes))
 
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
@@ -183,7 +191,7 @@ class ResNet(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
         # logging.info('Size after conv1: {}'.format(x.size()))
-        x = self.maxpool(x)
+        x = self.maxpool1(x)
         # logging.info('Size after maxpool: {}'.format(x.size()))
 
         x = self.layer1(x)
@@ -195,8 +203,12 @@ class ResNet(nn.Module):
         x = self.layer4(x)
         # logging.info('Size after layer4: {}'.format(x.size()))
 
-        x = self.avgpool(x)
+        avg_feat = self.avgpool(x)
         # logging.info('Size after avgpool: {}'.format(x.size()))
+        # add max pooling
+        max_feat = self.maxpool2(x)
+        x = torch.cat((avg_feat, max_feat), dim=1)
+
         x = torch.flatten(x, 1)
         # logging.info('Size after flatten: {}'.format(x.size()))
         x = self.fc(x)

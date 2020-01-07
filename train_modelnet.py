@@ -224,7 +224,7 @@ if __name__ == '__main__':
     parser = ArgumentParser(description='Train a point cloud classification network using 1D convs and hilbert order.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('--root_dir', type=str, default='/data/sfc/modelnet40',
+    parser.add_argument('--root_dir', type=str, default='/data/sfc/modelnet40_ply_hdf5_2048',
                         help='root directory containing ModelNet40 data')
     parser.add_argument('--model_dir', type=str, default='log/',
                         help='root directory containing ModelNet40 data')
@@ -234,17 +234,27 @@ if __name__ == '__main__':
                         help='index of GPU to use (0-indexed); if multi_gpu then value is ignored')
     parser.add_argument('--state', default=None, type=str,
                         help='path for best state to load')
-    parser.add_argument('--batch_size', default=None, type=int,
-                        help='batch size')
-    parser.add_argument('--kernel_size', default=None, type=int,
+    # parser.add_argument('--batch_size', default=None, type=int, help='batch size')
+    # parser.add_argument('--kernel_size', default=None, type=int,
+    #                     help='odd value for kernel size')
+    # parser.add_argument('--lr', default=None, type=float,
+    #                     help='learning rate')
+    # parser.add_argument('--bias', default=None, action='store_true',
+    #                     help='use bias in convolutions')
+    # parser.add_argument('--augment', default=None, action='store_true',
+    #                     help='use augmentation in training')
+    # parser.add_argument('--random_seed', default=None, type=int,
+    #                     help='optional random seed')
+    parser.add_argument('--batch_size', default=32, type=int, help='batch size')
+    parser.add_argument('--kernel_size', default=15, type=int,
                         help='odd value for kernel size')
-    parser.add_argument('--lr', default=None, type=float,
+    parser.add_argument('--lr', default=1e-3, type=float,
                         help='learning rate')
-    parser.add_argument('--bias', default=None, action='store_true',
+    parser.add_argument('--bias', default=True, action='store_true',
                         help='use bias in convolutions')
-    parser.add_argument('--augment', default=None, action='store_true',
+    parser.add_argument('--augment', default=False, action='store_true',
                         help='use augmentation in training')
-    parser.add_argument('--random_seed', default=None, type=int,
+    parser.add_argument('--random_seed', default=1, type=int,
                         help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str,
                         help='logging level')

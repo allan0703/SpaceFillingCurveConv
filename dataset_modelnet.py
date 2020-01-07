@@ -141,7 +141,8 @@ class ModelNet40(Dataset):
 
         for i in range(points_voxel.shape[0]):
             # by doing the astype int, it will assign the same hilbert_dist to the points that belong to the same space
-            # todo: check how much overlapping (multi-points in the same space)
+            # todo: check how much duplicates (multi-points in the same space).
+            #  answer is no. p is 7, which partition the space very precise
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :].astype(int))
         idx = np.argsort(hilbert_dist)
 
