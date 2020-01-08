@@ -39,12 +39,13 @@ def train(config, model_dir, writer):
     :param writer: Tensorboard SummaryWritter object
     """
     phases = ['train', 'test']
+    # phases = ['test', 'train']
 
     # todo: rewrite the loading in pytorch geometric way.
     datasets, dataloaders, num_classes = ds.get_s3dis_dataloaders(root_dir=args.root_dir,
                                                                   phases=phases,
                                                                   batch_size=config['batch_size'],
-                                                                  category=config['augment'],
+                                                                  category=5,
                                                                   augment=config['augment'])
 
     # add number of classes to config
