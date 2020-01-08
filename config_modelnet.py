@@ -35,7 +35,7 @@ def generate_config(args):
         'lr': lr,
         'batch_size': int(batch_size),
         'kernel_size': int(kernel_size),
-        'input_size': 3,
+        'input_size': args.input_size,
         'augment': augment,
         'bias': bias,
         'num_classes': 0,

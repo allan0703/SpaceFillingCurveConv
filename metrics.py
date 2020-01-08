@@ -5,6 +5,7 @@ import torch
 __all__ = ['Accuracy', 'ClassAccuracy', 'LossMean']
 
 
+# todo: learn how to write in this way, good.
 class ConfusionMatrix(object):
     """
     Calculates the confusion matrix of a multiclass classifier
@@ -241,12 +242,6 @@ if __name__ == '__main__':
     #
     # print('Accuracy: {}'.format(res))
 
-    cm = ConfusionMatrix(num_classes=num_classes)
-    cm.update(y_true, y_pred)
-
-    res = cm.result(metric='class_accuracy')
-    print('CM Accuracy: {}'.format(res.mean()))
-
     # class_accuracy = ClassAccuracy(num_classes=num_classes)
     # class_accuracy.update(y_true, y_pred)
     #
@@ -261,3 +256,23 @@ if __name__ == '__main__':
     #
     # res = loss.result()
     # print('Loss: {}'.format(res))
+
+    ## verify miou calculating.
+    cm = ConfusionMatrix(num_classes=num_classes)
+    cm.update(y_true, y_pred)
+
+    res = cm.result(metric='iou')
+    print('CM Accuracy: {}'.format(res.mean()))
+    # import numpy as np
+    # iou = []
+    #
+    # pred_np = y_pred.max(dim=1)[1].numpy()
+    # y_np = y_true.numpy()
+    # for cl in range(num_classes):
+    #     cur_gt_mask = (y_np == cl)
+    #     cur_pred_mask = (pred_np == cl)
+    #     I = np.sum(np.logical_and(cur_pred_mask, cur_gt_mask), dtype=np.float32)
+    #     U = np.sum(np.logical_or(cur_pred_mask, cur_gt_mask), dtype=np.float32)
+    #     iou.append(I/U)
+    # iou.mean()
+    # iou is correct
