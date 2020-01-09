@@ -107,7 +107,7 @@ class S3DIS(InMemoryDataset):
                 # order points in hilbert order
                 # after normalizaiton, -1 to 1
                 pos, x, y = data.pos, data.x, data.y
-                point = (pos.numpy()+1)/2
+                point = (pos.numpy()+1)/2  # normalize to 0, 1
                 points_voxel = np.floor(point * (2 ** self.p - 1)).astype(int)
                 hilbert_dist = np.zeros(points_voxel.shape[0])
 
