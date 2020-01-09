@@ -10,35 +10,23 @@ def generate_config(args):
     :param args: main function arguments used for storing information
     :return: configuration dictionary used for training
     """
-    kernel_size = np.random.choice([3, 9, 15, 21, 27])
-    if args.kernel_size is not None:
+
+    if args.hyperpara_search:
+        kernel_size = np.random.choice([3, 9, 15, 21, 27])
+        lr = np.random.choice([1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
+
+    else:
         kernel_size = args.kernel_size
-
-    lr = np.random.choice([1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
-    if args.lr is not None:
         lr = args.lr
-
-    # bias = np.random.choice([True, False])
-    bias = False
-    if args.bias is not None:
-        bias = args.bias
-
-    batch_size = np.random.choice([8, 16, 32, 64, 128])
-    if args.batch_size is not None:
-        batch_size = args.batch_size
-
-    augment = np.random.choice([True, False])
-    if args.augment is not None:
-        augment = args.augment
 
     config = {
         'lr': lr,
-        'batch_size': int(batch_size),
+        'batch_size': args.batch_size,
         'kernel_size': int(kernel_size),
         'in_channels': args.in_channels,
         'channels': args.channels,
-        'augment': augment,
-        'bias': bias,
+        'augment': args.augment,
+        'bias': args.bias,
         'num_classes': 0,
         'category': args.category,
         'max_epochs': 300,
@@ -58,3 +46,5 @@ def generate_config(args):
     }
 
     return config
+
+
