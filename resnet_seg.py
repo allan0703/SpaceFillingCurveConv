@@ -102,12 +102,12 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, k, in_channels=3, num_classes=40, zero_init_residual=False,
+    def __init__(self, block, layers, k, in_channels=3, num_classes=40, channels=64, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None):
         super(ResNet, self).__init__()
 
         self._norm_layer = nn.BatchNorm1d
-        self.channels = 64
+        self.channels = channels
         self.dilation = 1
         self.dropout = 0.5
 

@@ -35,7 +35,7 @@ def train(config, model_dir, writer):
     datasets, dataloaders, num_classes = ds.get_s3dis_dataloaders(root_dir=config['root_dir'],
                                                                   phases=phases,
                                                                   batch_size=config['batch_size'],
-                                                                  category=5,
+                                                                  category=config['category'],
                                                                   augment=config['augment'])
 
     # add number of classes to config
@@ -54,7 +54,7 @@ def train(config, model_dir, writer):
     # we load the model defined in the config file
     # todo: now the code is IO bound. No matter which network we use, it is similar speed.
     model = res.resnet18(in_channels=config['in_channels'], num_classes=config['num_classes'],
-                         kernel_size=config['kernel_size']).to(device)
+                         kernel_size=config['kernel_size'], channels=config['channels']).to(device)
     logging.info('the number of params is {: .2f} M'.format(utl.count_model_params(model)/(1e6)))
     # if use multi_gpu then convert the model to DataParallel
     if config['multi_gpu']:
@@ -194,7 +194,7 @@ def main(args):
         config = best_state['config']
 
     # create a checkpoint directory
-    model_dir = utl.generate_experiment_dir(args.model_dir, config, prefix_str='modelnet40-hilbert')
+    model_dir = utl.generate_experiment_dir(args.model_dir, config, prefix_str='S3DIS-hilbert')
 
     # configure logger
     utl.configure_logger(model_dir, args.loglevel.upper())
@@ -221,12 +221,15 @@ if __name__ == '__main__':
     parser.add_argument('--in_channels', default=9, type=int, help='input channel size')
     parser.add_argument('--batch_size', default=32, type=int, help='batch size')
     parser.add_argument('--kernel_size', default=15, type=int)
+    parser.add_argument('--channels', default=32, type=int)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
     parser.add_argument('--bias', action='store_true', help='use bias in convolutions')
     parser.add_argument('--augment', action='store_true', help='use augmentation in training')
     parser.add_argument('--random_seed', default=1, type=int, help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str, help='logging level')
     parser.add_argument('--category', default=5, type=int, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
+    parser.add_argument('--hilbert_level', default=7, type=int, help='hilbert curve level')
+    parser.add_argument('--architecture', default='resnet18', type=str, help='architecture')
     args = parser.parse_args()
 
     utl.set_seed(args.random_seed)
