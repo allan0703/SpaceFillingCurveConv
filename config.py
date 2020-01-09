@@ -14,10 +14,11 @@ def generate_config(args):
     if args.hyperpara_search:
         kernel_size = np.random.choice([3, 9, 15, 21, 27])
         lr = np.random.choice([1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
-
+        random_seed = np.random.randint(0, 1000, 1)
     else:
         kernel_size = args.kernel_size
         lr = args.lr
+        random_seed = args.random_seed
 
     config = {
         'lr': lr,
@@ -40,9 +41,10 @@ def generate_config(args):
         'model_dir': args.model_dir,
         'hilbert_level': args.hilbert_level,
         'architecture': args.architecture,
+        'random_seed': random_seed,
         'do_not_dump_in_tensorboard': ['do_not_dump_in_tensorboard', 'model', 'order',
                                        'category', 'dataset', 'data_loading_function',
-                                       'backbone', 'root_dir', 'model_dir'],
+                                       'backbone', 'root_dir', 'model_dir', 'architecture'],
     }
 
     return config

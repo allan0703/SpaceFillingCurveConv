@@ -26,9 +26,9 @@ def generate_experiment_dir(model_dir, config, prefix_str=''):
     :param config: Dictionary with config
     """
     timestamp = time.strftime('%Y-%m-%d-%H:%M:%S')
-    experiment_string = '{}_{}_{}_k{}_C{}_lr{}_{}_{}' \
+    experiment_string = '{}_{}_{}_k{}_C{}_lr{}_Seed{}_{}_{}' \
         .format(timestamp, prefix_str+str(config['hilbert_level']),
-                config['architecture'], config['kernel_size'], config['channels'], config['lr'],
+                config['architecture'], config['kernel_size'], config['channels'], config['lr'], config['random_seed'],
                 'augment' if config['augment'] else 'no-augment', config['max_epochs'], uuid.uuid4())
 
     # experiment_dir = os.path.join(os.path.curdir, experiment_string)
