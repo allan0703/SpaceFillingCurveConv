@@ -107,11 +107,16 @@ def train(config, model_dir, writer):
             trackers[phase]['cm'].reset()
 
             # use tqdm to show progress and print message
-            for step_number, (data, label) in enumerate(tqdm(dataloaders[phase],
+            # this is for loadding our new data format
+            for step_number, batchdata in enumerate(tqdm(dataloaders[phase],
                                                              desc='[{}/{}] {} '.format(epoch + 1, config['max_epochs'],
                                                                                        phase))):
-                data = data.to(device, dtype=torch.float).permute(0, 2, 1)
-                label = label.to(device, dtype=torch.long)
+                data = torch.cat((batchdata.pos, batchdata.x), dim=2).transpose(1, 2).to(device, dtype=torch.float)
+                label = batchdata.y.to(device, dtype=torch.long)
+                # should we release the memory?
+
+                # data = data.to(device, dtype=torch.float).permute(0, 2, 1)
+                # label = label.to(device, dtype=torch.long)
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
