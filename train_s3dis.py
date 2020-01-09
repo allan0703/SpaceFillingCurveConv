@@ -6,7 +6,7 @@ import torch.nn as nn
 
 from tqdm import tqdm
 import config as cfg
-import load_s3dis_h5 as ds
+import load_s3dis_preorder as ds
 import resnet_seg as res
 
 import utils as utl

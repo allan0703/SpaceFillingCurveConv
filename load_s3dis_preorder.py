@@ -10,6 +10,7 @@ import logging
 import numpy as np
 from torch.utils.data import DataLoader
 from hilbertcurve.hilbertcurve import HilbertCurve
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 
 class S3DIS(InMemoryDataset):
@@ -131,7 +132,7 @@ class S3DIS(InMemoryDataset):
         torch.save(self.collate(test_data_list), self.processed_paths[1])
 
 
-def get_s3dis_dataloaders(root_dir, phases, batch_size, category, augment=False):
+def get_s3dis_dataloaders(root_dir, phases, batch_size, category=5, augment=False):
     """
     Create Dataset and Dataloader classes of the S3DIS dataset, for
     the phases required (`train`, `test`).
@@ -144,16 +145,21 @@ def get_s3dis_dataloaders(root_dir, phases, batch_size, category, augment=False)
     :return: 2 dictionaries, each containing Dataset or Dataloader for all phases
     """
     datasets = {
-        'train': S3DIS(root_dir, 5, True, pre_transform=T.NormalizeScale()),
-        'test': S3DIS(root_dir, 5, False, pre_transform=T.NormalizeScale())
+        'train': S3DIS(root_dir, category, True, pre_transform=T.NormalizeScale()),
+        'test': S3DIS(root_dir, category, False, pre_transform=T.NormalizeScale())
     }
 
     dataloaders = {x: DenseDataLoader(datasets[x], batch_size=batch_size, num_workers=4, shuffle=(x == 'train'))
                    for x in phases}
-    return datasets, dataloaders, num_classes
+    return datasets, dataloaders, datasets['train'].num_classes
 
 
 if __name__ == '__main__':
+    parser = ArgumentParser(description='Train a point cloud classification network using 1D convs and hilbert order.',
+                            formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--root_dir', type=str, default='/data/sfc/S3DIS',
+                        help='root directory containing S3DIS data')
+    args = parser.parse_args()
 
     numeric_level = getattr(logging, 'INFO', None)
     logging.basicConfig(format='%(asctime)s:%(levelname)s: %(message)s',
@@ -162,7 +168,7 @@ if __name__ == '__main__':
     logger = logging.getLogger()
     logger.setLevel(numeric_level)
 
-    root_dir = '/data/sfc/S3DIS'
+    root_dir = args.root_dir
     phases = ['train', 'test']
     batch_size = 32
     category = 5
