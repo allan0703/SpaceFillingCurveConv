@@ -57,7 +57,7 @@ class S3DIS(InMemoryDataset):
         self.p = hilbert_level
         self.hilbert_order = hilbert_order
         if self.hilbert_order:
-            self.hilbert_curve = HilbertCurve(p, 3)
+            self.hilbert_curve = HilbertCurve(self.p, 3)
         super(S3DIS, self).__init__(root, transform, pre_transform, pre_filter)
         path = self.processed_paths[0] if train else self.processed_paths[1]
         self.data, self.slices = torch.load(path)
