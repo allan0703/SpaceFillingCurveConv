@@ -334,3 +334,8 @@ def set_seed(seed=0):
     torch.backends.cudnn.benchmark = False
 
 
+# get the number of trained parameters in a model
+
+def count_model_params(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+

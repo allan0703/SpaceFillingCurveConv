@@ -32,9 +32,7 @@ def train(config, model_dir, writer):
     """
     phases = ['train', 'test']
     # phases = ['test', 'train']
-
-    # todo: rewrite the loading in pytorch geometric way.
-    datasets, dataloaders, num_classes = ds.get_s3dis_dataloaders(root_dir=args.root_dir,
+    datasets, dataloaders, num_classes = ds.get_s3dis_dataloaders(root_dir=config['root_dir'],
                                                                   phases=phases,
                                                                   batch_size=config['batch_size'],
                                                                   category=5,
@@ -57,6 +55,7 @@ def train(config, model_dir, writer):
     # todo: now the code is IO bound. No matter which network we use, it is similar speed.
     model = res.resnet18(in_channels=config['in_channels'], num_classes=config['num_classes'],
                          kernel_size=config['kernel_size']).to(device)
+    logging.info('the number of params is {: .2f} M'.format(utl.count_model_params(model)/(1e6)))
     # if use multi_gpu then convert the model to DataParallel
     if config['multi_gpu']:
         model = nn.DataParallel(model)
@@ -142,8 +141,8 @@ def train(config, model_dir, writer):
                 writer.add_scalar('params/lr', optimizer.param_groups[0]['lr'], epoch + 1)
 
             # log current results and dump in Tensorboard
-            logging.info('[{}/{}] {} Loss: {:.2e}. mIOU {:.4f}'
-                         .format(epoch + 1, config['max_epochs'], phase, epoch_loss, epoch_iou))
+            logging.info('[{}/{}] {} Loss: {:.2e}. mIOU {:.4f} \t best testing mIOU {:.4f}'
+                         .format(epoch + 1, config['max_epochs'], phase, epoch_loss, epoch_iou, best_state['test_iou']))
 
             writer.add_scalar('loss/epoch_{}'.format(phase), epoch_loss, epoch + 1)
             writer.add_scalar('mIoU/epoch_{}'.format(phase), epoch_iou, epoch + 1)
@@ -212,7 +211,7 @@ def main(args):
 if __name__ == '__main__':
     parser = ArgumentParser(description='Train a point cloud classification network using 1D convs and hilbert order.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--root_dir', type=str, default='/data/sfc/indoor3d_sem_seg_hdf5_data',
+    parser.add_argument('--root_dir', type=str, default='/data/sfc/S3DIS',
                         help='root directory containing S3DIS data')
     parser.add_argument('--model_dir', type=str, default='log/')
     parser.add_argument('--multi_gpu', default=False, action='store_true', help='use multiple GPUs (all available)')
