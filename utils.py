@@ -6,6 +6,7 @@ import uuid
 import logging
 import numpy as np
 import torch
+import random
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -320,3 +321,15 @@ def augment_batch_point_cloud(data):
     out_data = np.concatenate((jitter_data, data[:, 3:]), axis=-1)
 
     return out_data
+
+
+def set_seed(seed=0):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+

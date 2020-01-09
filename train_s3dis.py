@@ -1,15 +1,12 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import logging
-import torch
 import os
-
-import numpy as np
+import torch
 import torch.nn as nn
 
 from tqdm import tqdm
-
-import config_modelnet as cfg
-import dataset_s3dis as ds
+import config as cfg
+import load_s3dis_h5 as ds
 import resnet_seg as res
 
 import utils as utl
@@ -21,11 +18,6 @@ import metrics as metrics
 # random.seed(0)
 
 # https://pytorch.org/docs/stable/notes/randomness.html
-# torch.manual_seed(0)
-# torch.backends.cudnn.deterministic = True
-# torch.backends.cudnn.benchmark = False
-# non-determinism is unavoidable in some functions that use atomicAdd for example
-# such as torch.nn.functional.embedding_bag() and torch.bincount()
 
 
 def train(config, model_dir, writer):
@@ -56,7 +48,6 @@ def train(config, model_dir, writer):
     # also when using multi gpu we should specify index 0
     if config['gpu_index'] + 1 > torch.cuda.device_count() or config['multi_gpu']:
         config['gpu_index'] = 0
-
     logging.info('Using GPU cuda:{}, script PID {}'.format(config['gpu_index'], os.getpid()))
     if config['multi_gpu']:
         logging.info('Training on multi-GPU mode with {} devices'.format(torch.cuda.device_count()))
@@ -64,9 +55,8 @@ def train(config, model_dir, writer):
 
     # we load the model defined in the config file
     # todo: now the code is IO bound. No matter which network we use, it is similar speed.
-    model = res.resnet18(input_size=config['input_size'], num_classes=config['num_classes'],
+    model = res.resnet18(in_channels=config['in_channels'], num_classes=config['num_classes'],
                          kernel_size=config['kernel_size']).to(device)
-
     # if use multi_gpu then convert the model to DataParallel
     if config['multi_gpu']:
         model = nn.DataParallel(model)
@@ -78,7 +68,7 @@ def train(config, model_dir, writer):
                                                            mode='min',
                                                            factor=config['lr_decay'],
                                                            patience=config['lr_patience'],
-                                                           verbose=True)
+                                                           verbose=True)  # verbose. recommended to use.
 
     logging.info('Config {}'.format(config))
     logging.info('TB logs and checkpoint will be saved in {}'.format(model_dir))
@@ -86,10 +76,7 @@ def train(config, model_dir, writer):
     utl.dump_config_details_to_tensorboard(writer, config)
 
     # create metric trackers: we track lass, class accuracy, and overall accuracy
-    # todo: iou none?
     trackers = {x: {'loss': metrics.LossMean(),
-                    'acc': metrics.Accuracy(),
-                    'iou': None,
                     'cm': metrics.ConfusionMatrix(num_classes=int(config['num_classes']))}
                 for x in phases}
 
@@ -101,10 +88,8 @@ def train(config, model_dir, writer):
         'scheduler': scheduler.state_dict() if scheduler else None,
         'train_loss': float('inf'),
         'test_loss': float('inf'),
-        'train_acc': 0.0,
-        'test_acc': 0.0,
-        'train_class_acc': 0.0,
-        'test_class_acc': 0.0,
+        'train_iou': 0.0,
+        'test_iou': 0.0,
         'convergence_epoch': 0,
         'num_epochs_since_best_acc': 0
     }
@@ -121,6 +106,7 @@ def train(config, model_dir, writer):
             trackers[phase]['loss'].reset()
             trackers[phase]['cm'].reset()
 
+            # use tqdm to show progress and print message
             for step_number, (data, label) in enumerate(tqdm(dataloaders[phase],
                                                              desc='[{}/{}] {} '.format(epoch + 1, config['max_epochs'],
                                                                                        phase))):
@@ -141,14 +127,12 @@ def train(config, model_dir, writer):
                 trackers[phase]['loss'].update(average_loss=loss, batch_size=data.size(0))
                 trackers[phase]['cm'].update(y_true=label, y_logits=out)
 
-            # logging.info('Computing accuracy...')
-
             # compare with my metrics
             epoch_loss = trackers[phase]['loss'].result()
             epoch_iou = trackers[phase]['cm'].result(metric='iou').mean()
 
             # we update our learning rate scheduler if loss does not improve
-            if phase == 'test' and scheduler:
+            if phase == 'train' and scheduler:
                 scheduler.step(epoch_loss)
                 writer.add_scalar('params/lr', optimizer.param_groups[0]['lr'], epoch + 1)
 
@@ -161,11 +145,12 @@ def train(config, model_dir, writer):
 
         # after each epoch we update best state values as needed
         # first we save our state when we get better test accuracy
-        if best_state['test_acc'] > trackers['test']['cm'].result(metric='iou'):
+        test_iou = trackers['test']['cm'].result(metric='iou').mean()
+        if best_state['test_iou'] > test_iou:
             best_state['num_epochs_since_best_acc'] += 1
         else:
-            logging.info('Got a new best model with accuracy {:.4f}'
-                         .format(trackers['test']['cm'].result(metric='accuracy')))
+            logging.info('Got a new best model with iou {:.4f}'
+                         .format(test_iou))
             best_state = {
                 'config': config,
                 'model': model.state_dict(),
@@ -173,8 +158,8 @@ def train(config, model_dir, writer):
                 'scheduler': scheduler.state_dict() if scheduler else None,
                 'train_loss': trackers['train']['loss'].result(),
                 'test_loss': trackers['test']['loss'].result(),
-                'train_acc': trackers['train']['cm'].result(metric='iou').mean(),
-                'test_acc': trackers['test']['cm'].result(metric='iou').mean(),
+                'train_iou': trackers['train']['cm'].result(metric='iou').mean(),
+                'test_iou': test_iou,
                 'convergence_epoch': epoch + 1,
                 'num_epochs_since_best_acc': 0
             }
@@ -222,34 +207,24 @@ def main(args):
 if __name__ == '__main__':
     parser = ArgumentParser(description='Train a point cloud classification network using 1D convs and hilbert order.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
-
     parser.add_argument('--root_dir', type=str, default='/data/sfc/indoor3d_sem_seg_hdf5_data',
                         help='root directory containing S3DIS data')
     parser.add_argument('--model_dir', type=str, default='log/')
-    parser.add_argument('--multi_gpu', default=False, action='store_true',
-                        help='use multiple GPUs (all available)')
+    parser.add_argument('--multi_gpu', default=False, action='store_true', help='use multiple GPUs (all available)')
     parser.add_argument('--gpu', default=0, type=int,
                         help='index of GPU to use (0-indexed); if multi_gpu then value is ignored')
-    parser.add_argument('--state', default=None, type=str,
-                        help='path for best state to load')
-    parser.add_argument('--input_size', default=9, type=int, help='batch size')
+    parser.add_argument('--state', default=None, type=str, help='path for best state to load (pre-trained model)')
+    parser.add_argument('--in_channels', default=9, type=int, help='input channel size')
     parser.add_argument('--batch_size', default=32, type=int, help='batch size')
-    parser.add_argument('--kernel_size', default=15, type=int,
-                        help='odd value for kernel size')
-    parser.add_argument('--lr', default=1e-3, type=float,
-                        help='learning rate')
-    parser.add_argument('--bias', default=True, action='store_true',
-                        help='use bias in convolutions')
-    parser.add_argument('--augment', default=False, action='store_true',
-                        help='use augmentation in training')
-    parser.add_argument('--random_seed', default=1, type=int,
-                        help='optional random seed')
+    parser.add_argument('--kernel_size', default=15, type=int)
+    parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
+    parser.add_argument('--bias', action='store_true', help='use bias in convolutions')
+    parser.add_argument('--augment', action='store_true', help='use augmentation in training')
+    parser.add_argument('--random_seed', default=1, type=int, help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str, help='logging level')
     parser.add_argument('--category', default=5, type=int, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
-
     args = parser.parse_args()
 
-    if args.random_seed is not None:
-        np.random.seed(args.random_seed)
+    utl.set_seed(args.random_seed)
 
     main(args)

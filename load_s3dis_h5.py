@@ -91,7 +91,6 @@ class S3DIS(Dataset):
             pointcloud = utl.augment_point_cloud(pointcloud)
 
         # normalize points
-        # todo: do we have to do normalization?
         points_norm = pointcloud - pointcloud.min(axis=0)
         points_norm /= points_norm.max(axis=0) + 1e-23
 
@@ -110,7 +109,7 @@ class S3DIS(Dataset):
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, 0:3].astype(int))
         idx = np.argsort(hilbert_dist)
 
-        return pointcloud[idx, :], label
+        return pointcloud[idx, :], label[idx]    # todo: label also need indexing.
 
 
 def get_s3dis_dataloaders(root_dir, phases, batch_size, category, augment=False):

@@ -8,9 +8,8 @@ import torch.nn as nn
 
 from tqdm import tqdm
 
-import config_modelnet as cfg
-import dataset_modelnet as ds
-import resnet as res
+import config as cfg
+from train_modelnet import dataset_modelnet as ds, resnet as res
 
 import utils as utl
 import metrics as metrics
@@ -59,7 +58,7 @@ def train(config, model_dir, writer):
     device = torch.device('cuda:{}'.format(config['gpu_index']))
 
     # we load the model defined in the config file
-    model = res.resnet101(input_size=config['input_size'], num_classes=config['num_classes'],
+    model = res.resnet101(in_channels=config['in_channels'], num_classes=config['num_classes'],
                           kernel_size=config['kernel_size']).to(device)
 
     # if use multi_gpu then convert the model to DataParallel
@@ -197,7 +196,7 @@ def main(args):
     # given program arguments, generate a config file
     config = cfg.generate_config(args)
 
-    config['input_size'] = 3
+    config['in_channels'] = 3
 
     # if given a best state then we load it's config
     if args.state:
