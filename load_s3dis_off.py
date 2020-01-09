@@ -114,8 +114,8 @@ class S3DIS(InMemoryDataset):
                 # todo: we want to try two methods.
                 # todo: 1. globally along with locally hilbert curve
                 # todo: 2. multi-level of hilbert curve
-                for i in range(points_voxel.shape[0]):
-                    hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :])
+                for point_idx in range(points_voxel.shape[0]):
+                    hilbert_dist[point_idx] = self.hilbert_curve.distance_from_coordinates(points_voxel[point_idx, :])
                 idx = np.argsort(hilbert_dist)
                 pos = pos[idx, :]
                 x = x[idx, :]

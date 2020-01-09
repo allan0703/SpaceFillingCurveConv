@@ -88,7 +88,8 @@ def configure_logger(model_dir, loglevel):
         raise ValueError('Invalid log level: {}'.format(loglevel))
 
         # configure logger to display and save log data
-    log_format = logging.Formatter('%(asctime)s [%(levelname)-5.5s] [%(filename)s:%(lineno)04d] %(message)s')
+    # log_format = logging.Formatter('%(asctime)s [%(levelname)-5.5s] [%(filename)s:%(lineno)04d] %(message)s')
+    log_format = logging.Formatter('%(asctime)s %(message)s')
     logger = logging.getLogger()
     logger.setLevel(numeric_level)
 
