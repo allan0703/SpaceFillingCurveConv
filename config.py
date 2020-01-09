@@ -11,14 +11,14 @@ def generate_config(args):
     :return: configuration dictionary used for training
     """
 
+    kernel_size = args.kernel_size
+    lr = args.lr
+    random_seed = args.random_seed
+
     if args.hyperpara_search:
         kernel_size = np.random.choice([1, 3, 9, 15, 21, 27])
         # lr = np.random.choice([1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
         random_seed = np.random.randint(0, 1000, 1)
-    else:
-        kernel_size = args.kernel_size
-        lr = args.lr
-        random_seed = args.random_seed
 
     config = {
         'lr': lr,
