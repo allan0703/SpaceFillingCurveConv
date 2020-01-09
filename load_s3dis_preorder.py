@@ -189,7 +189,10 @@ if __name__ == '__main__':
     for phase in phases:
         print(phase.upper())
         print('\tDataset {} Dataloder {}'.format(len(datasets[phase]), len(dataloaders[phase])))
-        for i, (data, seg_label) in enumerate(dataloaders[phase]):
+        for i, data in enumerate(dataloaders[phase]):
+            print(data.pos.shape)
+            x = torch.cat((data.pos, data.x), dim=1)
+            seg_label = data.y
             print('\tData {} Seg Label {}'.format(data.size(), seg_label.size()))
             if i >= 3:
                 break
