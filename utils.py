@@ -25,7 +25,7 @@ def generate_experiment_dir(model_dir, config, prefix_str=''):
     :param prefix_str: Unique string for experiment
     :param config: Dictionary with config
     """
-    timestamp = time.strftime('%Y-%m-%d-%H:%M:%S')
+    timestamp = time.strftime('%Y-%m-%d-%H-%M-%S')
     experiment_string = '{}_{}_{}_k{}_C{}_lr{}_Seed{}_{}_{}' \
         .format(timestamp, prefix_str+str(config['hilbert_level']),
                 config['architecture'], config['kernel_size'], config['channels'], config['lr'], config['random_seed'],
