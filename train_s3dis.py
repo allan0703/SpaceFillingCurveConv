@@ -230,7 +230,7 @@ if __name__ == '__main__':
     parser.add_argument('--loglevel', default='INFO', type=str, help='logging level')
     parser.add_argument('--category', default=5, type=int, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
     parser.add_argument('--hilbert_level', default=7, type=int, help='hilbert curve level')
-    parser.add_argument('--architecture', default='resnet18', type=str, help='architecture')
+    parser.add_argument('--architecture', default='resnet8-pooling', type=str, help='architecture')
     parser.add_argument('--hyperpara_search', action='store_true', help='random choose a hyper parameter')
     args = parser.parse_args()
 

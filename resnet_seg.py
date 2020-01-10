@@ -133,9 +133,10 @@ class ResNet(nn.Module):
                                        dilate=replace_stride_with_dilation[2])
         # expand fc layers.
         # add a global feature
-        self.maxpool = nn.MaxPool1d(kernel_size=9, stride=1, padding=4)
-        self.avgpool = nn.AvgPool1d(kernel_size=9, stride=1, padding=4)
-        self.prediction = nn.Sequential(convKxK(3*(512 * block.expansion), 512, k=k),
+        self.maxpool1 = nn.AdaptiveMaxPool1d(1)
+        self.maxpool4 = nn.MaxPool1d(kernel_size=9, stride=1, padding=4)
+        self.avgpool4 = nn.AvgPool1d(kernel_size=9, stride=1, padding=4)
+        self.prediction = nn.Sequential(convKxK(3*(512 * block.expansion)+64, 512, k=k),
                                         self._norm_layer(512), nn.ReLU(inplace=True),
                                         convKxK(512, 256, k=k), nn.Dropout(p=self.dropout),
                                         self._norm_layer(256), nn.ReLU(inplace=True),
@@ -191,14 +192,18 @@ class ResNet(nn.Module):
 
         x = self.layer1(x)
         # logging.info('Size after layer1: {}'.format(x.size()))
+        max_1 = self.maxpool1(x)
         x = self.layer2(x)
+
         # logging.info('Size after layer2: {}'.format(x.size()))
         x = self.layer3(x)
         # logging.info('Size after layer3: {}'.format(x.size()))
         x = self.layer4(x)
+        max_4 = self.maxpool4(x)
+        avg_4 = self.avgpool4(x)
         # logging.info('Size after layer4: {}'.format(x.size()))
         # x = torch.flatten(x, 1)
-        x = torch.cat((self.maxpool(x), self.avgpool(x), x), dim=1)
+        x = torch.cat((x, max_1.repeat((1, 1, 4096)), max_4, avg_4), dim=1)
         # logging.info('Size after flatten: {}'.format(x.size()))
         x = self.prediction(x)
 
