@@ -53,9 +53,9 @@ def train(config, model_dir, writer):
 
     # we load the model defined in the config file
     # todo: now the code is IO bound. No matter which network we use, it is similar speed.
-    model = res.resnet18(in_channels=config['in_channels'], num_classes=config['num_classes'],
-                         kernel_size=config['kernel_size'], channels=config['channels']).to(device)
-    logging.info('the number of params is {: .2f} M'.format(utl.count_model_params(model)/(1e6)))
+    model = res.sfc_resnet_8(in_channels=config['in_channels'], num_classes=config['num_classes'],
+                             kernel_size=config['kernel_size'], channels=config['channels']).to(device)
+    logging.info('the number of params is {: .2f} M'.format(utl.count_model_params(model) / (1e6)))
     # if use multi_gpu then convert the model to DataParallel
     if config['multi_gpu']:
         model = nn.DataParallel(model)
@@ -87,8 +87,8 @@ def train(config, model_dir, writer):
         'scheduler': scheduler.state_dict() if scheduler else None,
         'train_loss': float('inf'),
         'test_loss': float('inf'),
-        'train_iou': 0.0,
-        'test_iou': 0.0,
+        'train_mIoU': 0.0,
+        'test_mIoU': 0.0,
         'convergence_epoch': 0,
         'num_epochs_since_best_acc': 0
     }
@@ -108,8 +108,8 @@ def train(config, model_dir, writer):
             # use tqdm to show progress and print message
             # this is for loadding our new data format
             for step_number, batchdata in enumerate(tqdm(dataloaders[phase],
-                                                             desc='[{}/{}] {} '.format(epoch + 1, config['max_epochs'],
-                                                                                       phase))):
+                                                         desc='[{}/{}] {} '.format(epoch + 1, config['max_epochs'],
+                                                                                   phase))):
                 data = torch.cat((batchdata.pos, batchdata.x), dim=2).transpose(1, 2).to(device, dtype=torch.float)
                 label = batchdata.y.to(device, dtype=torch.long)
                 # should we release the memory?
@@ -142,7 +142,8 @@ def train(config, model_dir, writer):
 
             # log current results and dump in Tensorboard
             logging.info('[{}/{}] {} Loss: {:.2e}. mIOU {:.4f} \t best testing mIOU {:.4f}'
-                         .format(epoch + 1, config['max_epochs'], phase, epoch_loss, epoch_iou, best_state['test_iou']))
+                         .format(epoch + 1, config['max_epochs'], phase, epoch_loss, epoch_iou,
+                                 best_state['test_mIoU']))
 
             writer.add_scalar('loss/epoch_{}'.format(phase), epoch_loss, epoch + 1)
             writer.add_scalar('mIoU/epoch_{}'.format(phase), epoch_iou, epoch + 1)
@@ -150,7 +151,7 @@ def train(config, model_dir, writer):
         # after each epoch we update best state values as needed
         # first we save our state when we get better test accuracy
         test_iou = trackers['test']['cm'].result(metric='iou').mean()
-        if best_state['test_iou'] > test_iou:
+        if best_state['test_mIoU'] > test_iou:
             best_state['num_epochs_since_best_acc'] += 1
         else:
             logging.info('Got a new best model with iou {:.4f}'
@@ -162,8 +163,8 @@ def train(config, model_dir, writer):
                 'scheduler': scheduler.state_dict() if scheduler else None,
                 'train_loss': trackers['train']['loss'].result(),
                 'test_loss': trackers['test']['loss'].result(),
-                'train_iou': trackers['train']['cm'].result(metric='iou').mean(),
-                'test_iou': test_iou,
+                'train_mIoU': trackers['train']['cm'].result(metric='iou').mean(),
+                'test_mIoU': test_iou,
                 'convergence_epoch': epoch + 1,
                 'num_epochs_since_best_acc': 0
             }

@@ -65,7 +65,7 @@ def dump_best_model_metrics_to_tensorboard(writer, phases, best_state):
     """
     for phase in phases:
         writer.add_scalar('best_state/{}_loss'.format(phase), best_state['{}_loss'.format(phase)], 0)
-        writer.add_scalar('best_state/{}_acc'.format(phase), best_state['{}_acc'.format(phase)], 0)
+        # writer.add_scalar('best_state/{}_iou'.format(phase), best_state['{}_iou'.format(phase)], 0)
         # check if we have mIoU
         iou_key = '{}_mIoU'.format(phase)
         if iou_key in best_state:

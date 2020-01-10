@@ -101,6 +101,7 @@ class Bottleneck(nn.Module):
         return out
 
 
+# todo: add pooling (global information)
 class ResNet(nn.Module):
     def __init__(self, block, layers, k, in_channels=3, num_classes=40, channels=64, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None):
@@ -131,11 +132,14 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=1,
                                        dilate=replace_stride_with_dilation[2])
         # expand fc layers.
-        self.prediction = nn.Sequential(convKxK(512 * block.expansion, 256, k=k), self._norm_layer(256),
-                                        nn.ReLU(inplace=True), nn.Dropout(p=self.dropout),
-                                        convKxK(256, 64, k=k), self._norm_layer(64), nn.ReLU(inplace=True),
-                                        nn.Dropout(p=self.dropout),
-                                        nn.Conv1d(64, num_classes, 1))
+        # add a global feature
+        self.maxpool = nn.MaxPool1d(kernel_size=9, stride=1, padding=4)
+        self.avgpool = nn.AvgPool1d(kernel_size=9, stride=1, padding=4)
+        self.prediction = nn.Sequential(convKxK(3*(512 * block.expansion), 512, k=k),
+                                        self._norm_layer(512), nn.ReLU(inplace=True),
+                                        convKxK(512, 256, k=k), nn.Dropout(p=self.dropout),
+                                        self._norm_layer(256), nn.ReLU(inplace=True),
+                                        nn.Conv1d(256, num_classes, 1))
 
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
@@ -194,6 +198,7 @@ class ResNet(nn.Module):
         x = self.layer4(x)
         # logging.info('Size after layer4: {}'.format(x.size()))
         # x = torch.flatten(x, 1)
+        x = torch.cat((self.maxpool(x), self.avgpool(x), x), dim=1)
         # logging.info('Size after flatten: {}'.format(x.size()))
         x = self.prediction(x)
 
@@ -203,6 +208,13 @@ class ResNet(nn.Module):
 def _resnet(block, layers, k, **kwargs):
     model = ResNet(block, layers, k, **kwargs)
     return model
+
+
+def sfc_resnet_8(kernel_size=9, **kwargs):
+    r"""ResNet-18 model from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    """
+    return _resnet(BasicBlock, [1, 1, 1, 2], kernel_size, **kwargs)
 
 
 def resnet18(kernel_size=9, **kwargs):
