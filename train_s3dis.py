@@ -7,7 +7,7 @@ import torch.nn as nn
 from tqdm import tqdm
 import config as cfg
 import load_s3dis_preorder as ds
-import resnet_seg as res
+import architecture as res
 
 import utils as utl
 import metrics as metrics
@@ -54,7 +54,8 @@ def train(config, model_dir, writer):
     # we load the model defined in the config file
     # todo: now the code is IO bound. No matter which network we use, it is similar speed.
     model = res.sfc_resnet_8(in_channels=config['in_channels'], num_classes=config['num_classes'],
-                             kernel_size=config['kernel_size'], channels=config['channels']).to(device)
+                             kernel_size=config['kernel_size'], channels=config['channels'],
+                             use_tnet=config['use_tnet'], n_points=config['n_points']).to(device)
     logging.info('the number of params is {: .2f} M'.format(utl.count_model_params(model) / (1e6)))
     # if use multi_gpu then convert the model to DataParallel
     if config['multi_gpu']:
@@ -113,9 +114,8 @@ def train(config, model_dir, writer):
                 data = torch.cat((batchdata.pos, batchdata.x), dim=2).transpose(1, 2).to(device, dtype=torch.float)
                 label = batchdata.y.to(device, dtype=torch.long)
                 # should we release the memory?
+                # todo: add data augmentation
 
-                # data = data.to(device, dtype=torch.float).permute(0, 2, 1)
-                # label = label.to(device, dtype=torch.long)
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
@@ -232,6 +232,8 @@ if __name__ == '__main__':
     parser.add_argument('--hilbert_level', default=7, type=int, help='hilbert curve level')
     parser.add_argument('--architecture', default='resnet8-pooling', type=str, help='architecture')
     parser.add_argument('--hyperpara_search', action='store_true', help='random choose a hyper parameter')
+    parser.add_argument('--use_tnet', default=True, type=bool, help='random choose a hyper parameter')
+    parser.add_argument('--n_points', default=4096, type=int)
     args = parser.parse_args()
 
     utl.set_seed(args.random_seed)
