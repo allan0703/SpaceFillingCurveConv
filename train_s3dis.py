@@ -232,11 +232,11 @@ if __name__ == '__main__':
     parser.add_argument('--hilbert_level', default=7, type=int, help='hilbert curve level')
     parser.add_argument('--architecture', default='resnet8-pooling', type=str, help='architecture')
     parser.add_argument('--hyperpara_search', action='store_true', help='random choose a hyper parameter')
-    parser.add_argument('--use_tnet', default=False, type=bool, help='random choose a hyper parameter')
+    parser.add_argument('--use_tnet', action='store_true', help='random choose a hyper parameter')
     parser.add_argument('--n_points', default=4096, type=int)
     args = parser.parse_args()
 
     utl.set_seed(args.random_seed)
 
     main(args)
-    torch.ones
+
