@@ -29,7 +29,7 @@ def act_layer(act, inplace=False, neg_slope=0.2, n_prelu=1):
 
 
 class MLP(Seq):
-    def __init__(self, channels, act='relu', norm=True, bias=True, dropout=False, drop_p=0.5):
+    def __init__(self, channels, act='relu', norm=True, bias=False, dropout=False, drop_p=0.5):
         m = []
         for i in range(1, len(channels)):
             m.append(Lin(channels[i - 1], channels[i], bias))
@@ -43,14 +43,14 @@ class MLP(Seq):
 
 
 class BasicConv(Seq):
-    def __init__(self, channels, k=1, stride=1, dilation=1, act='relu', norm=True, bias=True,
+    def __init__(self, channels, k=1, stride=1, dilation=1, act='relu', norm=True, bias=False,
                  dropout=False, drop_p=0.5, **kwargs):
         padding = k // 2
         m = []
         for i in range(1, len(channels)):
             m.append(Conv1d(channels[i - 1], channels[i], kernel_size=k, stride=stride,
                      padding=dilation * padding, bias=bias, dilation=dilation, **kwargs))
-            if i != 0 and dropout:
+            if dropout:
                 m.append(nn.Dropout(p=drop_p))
             if norm:
                 m.append(nn.BatchNorm1d(channels[i]))
@@ -74,6 +74,13 @@ class BasicBlock(nn.Module):
         self.conv2 = BasicConv([out_channels, out_channels], k=k, act=None)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
+        # # Zero-initialize the last BN in each residual branch,
+        # # so that the residual branch starts with zeros, and each residual block behaves like an identity.
+        # # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
+        # if zero_init_residual:
+        #     for m in self.modules():
+        #         if isinstance(m, BasicBlock):
+        #             nn.init.constant_(m.bn2.weight, 0)
 
     def forward(self, x):
         identity = x
@@ -130,6 +137,9 @@ class BasicBlock(nn.Module):
 #         out = self.relu(out)
 #
 #         return out
+
+def generate_conv_indices(n_points=1048, kernel_size=3):
+    idx = torch.range(-1, n_points)
 
 
 def stn(x, transform_matrix=None):
@@ -204,8 +214,8 @@ class ResNet(nn.Module):
         self.maxpool1 = nn.AdaptiveMaxPool1d(1)
         self.maxpool4 = nn.MaxPool1d(kernel_size=9, stride=1, padding=4)
         self.avgpool4 = nn.AvgPool1d(kernel_size=9, stride=1, padding=4)
-        self.prediction = nn.Sequential(BasicConv([3*(512 * block.expansion)+64, 512, 256],
-                                                  k=k, dropout=True, drop_p=self.dropout),
+        self.prediction = nn.Sequential(BasicConv([3*(512 * block.expansion)+64, 512], k=k),
+                                        BasicConv([512, 256], k=k, dropout=True, drop_p=self.dropout),
                                         nn.Conv1d(256, num_classes, 1))
 
         for m in self.modules():
@@ -214,17 +224,6 @@ class ResNet(nn.Module):
             elif isinstance(m, (nn.BatchNorm1d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
-
-        # Zero-initialize the last BN in each residual branch,
-        # so that the residual branch starts with zeros, and each residual block behaves like an identity.
-        # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
-        if zero_init_residual:
-            for m in self.modules():
-                # if isinstance(m, Bottleneck):
-                #     nn.init.constant_(m.bn3.weight, 0)
-                # el
-                if isinstance(m, BasicBlock):
-                    nn.init.constant_(m.bn2.weight, 0)
 
     def _make_layer(self, block, channels, n_block, k=9, stride=1, dilate=False):
         downsample = None
