@@ -7,7 +7,7 @@ import torch.nn as nn
 from tqdm import tqdm
 import config as cfg
 import load_s3dis_preorder as ds
-import architecture as res
+import architecture_knn as res
 
 import utils as utl
 import metrics as metrics
@@ -212,7 +212,7 @@ def main(args):
 if __name__ == '__main__':
     parser = ArgumentParser(description='Train a point cloud classification network using 1D convs and hilbert order.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--root_dir', type=str, default='/data/sfc/S3DIS',
+    parser.add_argument('--root_dir', type=str, default='/home/wangh0j/data/sfc/S3DIS',
                         help='root directory containing S3DIS data')
     parser.add_argument('--model_dir', type=str, default='log/')
     parser.add_argument('--multi_gpu', default=False, action='store_true', help='use multiple GPUs (all available)')
@@ -233,6 +233,7 @@ if __name__ == '__main__':
     parser.add_argument('--architecture', default='resnet8-pooling', type=str, help='architecture')
     parser.add_argument('--hyperpara_search', action='store_true', help='random choose a hyper parameter')
     parser.add_argument('--use_tnet', default=False, type=bool, help='random choose a hyper parameter')
+    # parser.add_argument('--use_knn', default=False, type=bool, help='random choose a hyper parameter')
     parser.add_argument('--n_points', default=4096, type=int)
     args = parser.parse_args()
 
