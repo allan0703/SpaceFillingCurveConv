@@ -79,16 +79,18 @@ class BasicConv2(Seq):
 
 
 class BasicConv(Seq):
-    def __init__(self, channels, k=1, stride=1, dilation=1, act='relu', norm=True, bias=False,
+    def __init__(self, channels, kernel_size=5, knn=9, stride=1, dilation=1, act='relu', norm=True, bias=False,
                  dropout=False, drop_p=0.5, use_knn=False, **kwargs):
         super(BasicConv, self).__init__()
-        padding = k // 2
+        #padding = knn // 2
 
-        self.conv1 = Conv2d(channels[0], channels[0], kernel_size=[1, k])
+        self.conv1 = Conv2d(channels[0], channels[0], kernel_size=[1, knn], stride=stride,
+                         bias=bias, dilation=dilation, **kwargs)
         self.bn = nn.BatchNorm1d(channels[0])
         self.act = nn.ReLU(inplace=True)
 
-        conv2 = [Conv1d(channels[0], channels[1], kernel_size=k, stride=stride,
+        padding = kernel_size // 2
+        conv2 = [Conv1d(channels[0], channels[1], kernel_size=kernel_size, stride=stride,
                         padding=dilation * padding, bias=bias, dilation=dilation, **kwargs)]
         if dropout:
             conv2.append(nn.Dropout(p=drop_p))
@@ -100,6 +102,7 @@ class BasicConv(Seq):
 
     def forward(self, x, edge_index=None):
         x_i = batched_index_select(x, edge_index)
+        b = self.conv1(x_i).squeeze(-1)
         x = self.act(self.bn(self.conv1(x_i).squeeze(-1)))
         x = self.conv2(x)
         return x
@@ -108,7 +111,7 @@ class BasicConv(Seq):
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, in_channels, out_channels, stride=1, k=9, downsample=None, groups=1,
+    def __init__(self, in_channels, out_channels, stride=1, kernel_size=5, knn=9, downsample=None, groups=1,
                  base_width=64, dilation=1):
         super(BasicBlock, self).__init__()
         if groups != 1 or base_width != 64:
@@ -118,8 +121,8 @@ class BasicBlock(nn.Module):
             raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
 
         # self.knn = DenseDilatedKnnGraph(k, 1, stochastic, epsilon)
-        self.conv1 = BasicConv([in_channels, out_channels], stride=stride, k=k)
-        self.conv2 = BasicConv([out_channels, out_channels], k=k, act=None)
+        self.conv1 = BasicConv([in_channels, out_channels], stride=stride, kernel_size=kernel_size, knn=knn)
+        self.conv2 = BasicConv([out_channels, out_channels], kernel_size=kernel_size, knn=knn, act=None)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         # # Zero-initialize the last BN in each residual branch,
@@ -230,7 +233,7 @@ class TNet(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, k, in_channels=3, num_classes=40, channels=64, zero_init_residual=False,
+    def __init__(self, block, layers, kernel_size=5, knn=9, in_channels=3, num_classes=40, channels=64, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None, use_tnet=False, n_points=1024):
         super(ResNet, self).__init__()  # groups shi shenme ?
 
@@ -239,7 +242,7 @@ class ResNet(nn.Module):
         self.dropout = 0.5
         self.n_points = n_points
         self.use_tnet = use_tnet
-        self.knn = DenseDilatedKnnGraph(k, 1)
+        self.knn = DenseDilatedKnnGraph(knn, 1)
         # self.knn = DenseDilatedKnnGraph(k, 1)
 
         if replace_stride_with_dilation is None:
@@ -253,9 +256,9 @@ class ResNet(nn.Module):
         self.base_width = width_per_group  #
         if self.use_tnet:
             self.tnet3 = TNet(3, self.n_points)
-        self.conv1 = BasicConv([in_channels, channels], k=k)
-        self.layer1 = self._make_layer(block, 128, layers[0], k=k)
-        self.layer2 = self._make_layer(block, 256, layers[1], k=k, stride=1,
+        self.conv1 = BasicConv([in_channels, channels], kernel_size, knn)
+        self.layer1 = self._make_layer(block, 128, layers[0], kernel_size, knn)
+        self.layer2 = self._make_layer(block, 256, layers[1], kernel_size, knn, stride=1,
                                        dilate=replace_stride_with_dilation[0])
         # self.layer3 = self._make_layer(block, 256, layers[2], k=k, stride=1,
         #                                dilate=replace_stride_with_dilation[1])
@@ -266,8 +269,8 @@ class ResNet(nn.Module):
         self.maxpool1 = nn.AdaptiveMaxPool1d(1)
         self.maxpool4 = nn.MaxPool1d(kernel_size=9, stride=1, padding=4)
         self.avgpool4 = nn.AvgPool1d(kernel_size=9, stride=1, padding=4)
-        self.pred1 = BasicConv([3 * (256 * block.expansion) + 128, 512], k=k)
-        self.pred2 = BasicConv([512, 256], k=k, dropout=True, drop_p=self.dropout)
+        self.pred1 = BasicConv([3 * (256 * block.expansion) + 128, 512], kernel_size=kernel_size, knn=knn)
+        self.pred2 = BasicConv([512, 256], kernel_size=kernel_size, knn=knn, dropout=True, drop_p=self.dropout)
         self.pred3 = nn.Conv1d(256, num_classes, 1)
 
         for m in self.modules():
@@ -277,7 +280,7 @@ class ResNet(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-    def _make_layer(self, block, channels, n_block, k=9, stride=1, dilate=False):
+    def _make_layer(self, block, channels, n_block, kernel_size=5, knn=9, stride=1, dilate=False):
         downsample = None
         previous_dilation = self.dilation
         if dilate:
@@ -286,11 +289,11 @@ class ResNet(nn.Module):
         if stride != 1 or self.channels != channels * block.expansion:
             downsample = BasicConv2([self.channels, channels * block.expansion], stride=stride, act=None)
 
-        layers = [block(self.channels, channels, stride, k, downsample, self.groups,
+        layers = [block(self.channels, channels, stride, kernel_size, knn, downsample, self.groups,
                         self.base_width, previous_dilation)]
         self.channels = channels * block.expansion
         for _ in range(1, n_block):
-            layers.append(block(self.channels, channels, k=k, groups=self.groups,
+            layers.append(block(self.channels, channels, kernel_size=kernel_size, knn=knn, groups=self.groups,
                                 base_width=self.base_width, dilation=self.dilation))
 
         return MultiSeq(*layers)
@@ -324,23 +327,23 @@ class ResNet(nn.Module):
         return x
 
 
-def _resnet(block, layers, k, **kwargs):
-    model = ResNet(block, layers, k, **kwargs)
+def _resnet(block, layers, kernel_size=5, knn=9, **kwargs):
+    model = ResNet(block, layers, kernel_size, knn, **kwargs)
     return model
 
 
-def sfc_resnet_8(kernel_size=9, **kwargs):
+def sfc_resnet_8(kernel_size=5, **kwargs):
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
     """
     return _resnet(BasicBlock, [1, 1, 1, 1], kernel_size, **kwargs)
 
 
-def resnet18(kernel_size=9, **kwargs):
+def resnet18(kernel_size=5, knn=9, **kwargs):
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
     """
-    return _resnet(BasicBlock, [2, 2, 2, 2], kernel_size, **kwargs)
+    return _resnet(BasicBlock, [2, 2, 2, 2], kernel_size, knn, **kwargs)
 
 
 if __name__ == '__main__':
@@ -352,9 +355,10 @@ if __name__ == '__main__':
     logger.setLevel(numeric_level)
 
     x = torch.rand((4, 9, 1024), dtype=torch.float)
-    k = 21
+    kernel_size = 5
+    knn = 9
 
-    net = sfc_resnet_8(kernel_size=k, in_channels=9, num_classes=40, n_points=1024, use_tnet=False)
+    net = sfc_resnet_8(kernel_size=kernel_size, knn=knn, in_channels=9, num_classes=40, n_points=1024, use_tnet=False)
 
     out = net(x)
     # out = out.mean(dim=1)

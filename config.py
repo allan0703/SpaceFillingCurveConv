@@ -13,6 +13,7 @@ def generate_config(args):
     """
 
     kernel_size = args.kernel_size
+    knn = args.knn
     lr = args.lr
     random_seed = args.random_seed
 
@@ -25,6 +26,7 @@ def generate_config(args):
         'lr': lr,
         'batch_size': args.batch_size,
         'kernel_size': int(kernel_size),
+        'knn': int(knn),
         'in_channels': args.in_channels,
         'channels': args.channels,
         'augment': args.augment,
