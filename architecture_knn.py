@@ -299,7 +299,7 @@ class ResNet(nn.Module):
         if self.use_tnet:
             aligned_pos = self.tnet3(x[:, :3, :])
             x = torch.cat((aligned_pos, x[:, 3:, :]), dim=1)
-        edge_index = self.knn(x[:, :3, :])
+        edge_index = self.knn(x[:, :3, :].detach())
 
         x = self.conv1(x, edge_index)
         # logging.info('Size after conv1: {}'.format(x.size()))
