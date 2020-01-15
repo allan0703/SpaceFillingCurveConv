@@ -243,7 +243,7 @@ class ResNet(nn.Module):
         self.dropout = 0.5
         self.n_points = n_points
         self.use_tnet = use_tnet
-        self.knn = DenseDilatedKnnGraph(k,1)
+        self.knn = DenseDilatedKnnGraph(k, 1)
         #self.knn = DenseDilatedKnnGraph(k, 1)
 
         if replace_stride_with_dilation is None:
