@@ -236,6 +236,4 @@ if __name__ == '__main__':
     parser.add_argument('--n_points', default=4096, type=int)
     args = parser.parse_args()
 
-    utl.set_seed(args.random_seed)
-
     main(args)
