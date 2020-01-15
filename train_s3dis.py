@@ -116,7 +116,6 @@ def train(config, model_dir, writer):
                 # should we release the memory?
                 # todo: add data augmentation
 
-
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
                     out = model(data)
