@@ -296,6 +296,7 @@ class ResNet(nn.Module):
             layers.append(block(self.channels, channels, kernel_size=kernel_size, knn=knn, groups=self.groups,
                                 base_width=self.base_width, dilation=self.dilation))
 
+
         return MultiSeq(*layers)
 
     def forward(self, x):
