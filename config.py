@@ -18,7 +18,7 @@ def generate_config(args):
     random_seed = args.random_seed
 
     if args.hyperpara_search:
-        kernel_size = np.random.choice([1, 3, 5, 9, 15])
+        # kernel_size = np.random.choice([1, 3, 5, 9, 15])
         # lr = np.random.choice([1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
         random_seed = np.random.randint(0, 1000, 1)
 
@@ -52,7 +52,7 @@ def generate_config(args):
                                        'backbone', 'root_dir', 'model_dir', 'architecture'],
     }
 
-    utl.set_seed(args.random_seed)
+    utl.set_seed(random_seed)
 
     return config
 
