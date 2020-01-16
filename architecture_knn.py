@@ -82,10 +82,10 @@ class BasicConv(Seq):
     def __init__(self, channels, kernel_size=5, knn=9, stride=1, dilation=1, act='relu', norm=True, bias=False,
                  dropout=False, drop_p=0.5, use_knn=False, **kwargs):
         super(BasicConv, self).__init__()
-        #padding = knn // 2
+        # padding = knn // 2
 
         self.conv1 = Conv2d(channels[0], channels[0], kernel_size=[1, knn], stride=stride,
-                         bias=bias, dilation=dilation, **kwargs)
+                            bias=bias, dilation=dilation, **kwargs)
         self.bn = nn.BatchNorm1d(channels[0])
         self.act = nn.ReLU(inplace=True)
 
@@ -102,7 +102,6 @@ class BasicConv(Seq):
 
     def forward(self, x, edge_index=None):
         x_i = batched_index_select(x, edge_index)
-        b = self.conv1(x_i).squeeze(-1)
         x = self.act(self.bn(self.conv1(x_i).squeeze(-1)))
         x = self.conv2(x)
         return x
@@ -233,7 +232,8 @@ class TNet(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, kernel_size=5, knn=9, in_channels=3, num_classes=40, channels=64, zero_init_residual=False,
+    def __init__(self, block, layers, kernel_size=5, knn=9, in_channels=3, num_classes=40, channels=64,
+                 zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None, use_tnet=False, n_points=1024):
         super(ResNet, self).__init__()  # groups shi shenme ?
 
@@ -295,7 +295,6 @@ class ResNet(nn.Module):
         for _ in range(1, n_block):
             layers.append(block(self.channels, channels, kernel_size=kernel_size, knn=knn, groups=self.groups,
                                 base_width=self.base_width, dilation=self.dilation))
-
 
         return MultiSeq(*layers)
 
