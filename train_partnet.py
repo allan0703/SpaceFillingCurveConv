@@ -33,11 +33,12 @@ def train(config, model_dir, writer):
     phases = ['train', 'test']
     # phases = ['test', 'train']
     # todo: config, and check the hilbert curve
-    datasets, dataloaders, num_classes = ds.get_s3dis_dataloaders(root_dir=config['root_dir'],
-                                                                  phases=phases,
-                                                                  batch_size=config['batch_size'],
-                                                                  category=config['category'],
-                                                                  augment=config['augment'])
+    datasets, dataloaders, num_classes = ds.get_partnet_dataloaders(root_dir=config['root_dir'],
+                                                                    phases=phases,
+                                                                    batch_size=config['batch_size'],
+                                                                    category=config['category'],
+                                                                    level=config['level'],
+                                                                    augment=config['augment'])
 
     # add number of classes to config
     config['num_classes'] = num_classes
@@ -55,7 +56,7 @@ def train(config, model_dir, writer):
     # we load the model defined in the config file
     # todo: now the code is IO bound. No matter which network we use, it is similar speed.
     model = res.sfc_resnet_8(in_channels=config['in_channels'], num_classes=config['num_classes'],
-                             kernel_size=config['kernel_size'], channels=config['channels'],
+                             kernel_size=config['kernel_size'], knn=config['knn'], channels=config['channels'],
                              use_tnet=config['use_tnet'], n_points=config['n_points']).to(device)
     logging.info('the number of params is {: .2f} M'.format(utl.count_model_params(model) / (1e6)))
     # if use multi_gpu then convert the model to DataParallel
@@ -213,7 +214,7 @@ if __name__ == '__main__':
     parser = ArgumentParser(description='Train a point cloud classification network using 1D convs and hilbert order.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--root_dir', type=str, default='/data/sfc/partnet',
-                        help='root directory containing Partnet data')
+                        help='root directory containing S3DIS data')
     parser.add_argument('--model_dir', type=str, default='log/')
     parser.add_argument('--multi_gpu', default=False, action='store_true', help='use multiple GPUs (all available)')
     parser.add_argument('--gpu', default=0, type=int,
@@ -222,13 +223,15 @@ if __name__ == '__main__':
     parser.add_argument('--in_channels', default=3, type=int, help='input channel size')
     parser.add_argument('--batch_size', default=8, type=int, help='batch size')
     parser.add_argument('--kernel_size', default=5, type=int)
+    parser.add_argument('--knn', default=5, type=int)
     parser.add_argument('--channels', default=64, type=int)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
     parser.add_argument('--bias', action='store_true', help='use bias in convolutions')
     parser.add_argument('--augment', action='store_true', help='use augmentation in training')
     parser.add_argument('--random_seed', default=1, type=int, help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str, help='logging level')
-    parser.add_argument('--category', default='Bed', type=str, help='category for training a model')
+    parser.add_argument('--category', default='Bed', type=str, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
+    parser.add_argument('--level', default=3, type=int, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
     parser.add_argument('--hilbert_level', default=7, type=int, help='hilbert curve level')
     parser.add_argument('--architecture', default='res8-knn', type=str, help='architecture')
     parser.add_argument('--hyperpara_search', action='store_true', help='random choose a hyper parameter')
@@ -238,3 +241,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     main(args)
+
+

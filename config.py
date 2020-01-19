@@ -1,30 +1,30 @@
 import numpy as np
 import utils as utl
 
-
 def generate_config(args):
     """
     Function to create a configuration file used in training
     Z-Conv part segmentation network. Random parameters are
     created for hyperparameter search.
-
     :param args: main function arguments used for storing information
     :return: configuration dictionary used for training
     """
 
     kernel_size = args.kernel_size
+    knn = args.knn
     lr = args.lr
     random_seed = args.random_seed
 
     if args.hyperpara_search:
-        kernel_size = np.random.choice([1, 3, 5, 9, 15])
+        #  kernel_size = np.random.choice([1, 3, 5, 9, 15])
         # lr = np.random.choice([1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
-        random_seed = np.random.randint(0, 1000, 1)
+        random_seed = np.random.randint(0, 1000, 1)[0]
 
     config = {
         'lr': lr,
         'batch_size': args.batch_size,
         'kernel_size': int(kernel_size),
+        'knn': int(knn),
         'in_channels': args.in_channels,
         'channels': args.channels,
         'augment': args.augment,
@@ -32,6 +32,7 @@ def generate_config(args):
         'bias': args.bias,
         'num_classes': 0,
         'category': args.category,
+        'level': args.level,
         'max_epochs': 300,
         'min_epochs': 100,
         'lr_decay': 0.9,
@@ -50,8 +51,7 @@ def generate_config(args):
                                        'backbone', 'root_dir', 'model_dir', 'architecture'],
     }
 
-    utl.set_seed(args.random_seed)
+    utl.set_seed(random_seed)
 
     return config
-
 

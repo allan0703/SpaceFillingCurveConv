@@ -40,6 +40,10 @@ class PartNet(InMemoryDataset):
             value, indicating whether the data object should be included in the
             final dataset. (default: :obj:`None`)
     """
+    # clss = ['Bag', 'Bed', 'Bottle', 'Bowl', 'Chair', 'Clock', 'Dishwasher', 'Display', 'Door', 'Earphone',  # 0-9
+    #         'Faucet', 'Hat', 'Keyboard', 'Knife', 'Lamp', 'Laptop', 'Microwave', 'Mug', 'Refrigerator', 'Scissors',
+    #         # 10-19
+    #         'StorageFurniture', 'Table', 'TrashCan', 'Vase']  # 20-23
     #
     # url = ('https://shapenet.cs.stanford.edu/media/'
     #        'indoor3d_sem_seg_hdf5_data.zip')
@@ -59,7 +63,7 @@ class PartNet(InMemoryDataset):
         self.level = level
         self.obj_category = obj_category
         self.object = '-'.join([self.obj_category, str(self.level)])
-        self.level_folder = 'level_'+str(self.level)
+        self.level_folder = 'level_' + str(self.level)
         self.processed_file_folder = osp.join(self.dataset, self.level_folder, self.object)
         self.p = hilbert_level
         self.hilbert_order = hilbert_order
@@ -74,8 +78,6 @@ class PartNet(InMemoryDataset):
         else:
             path = self.processed_paths[0]
         self.data, self.slices = torch.load(path)
-
-
 
     @property
     def raw_file_names(self):
@@ -202,7 +204,7 @@ class PartNet(InMemoryDataset):
         return self.collate(data_list)
 
 
-def get_s3dis_dataloaders(root_dir, phases, batch_size, dataset='sem_seg_h5', category='Bed', level=3, augment=False):
+def get_partnet_dataloaders(root_dir, phases, batch_size, dataset='sem_seg_h5', category='Bed', level=3, augment=False):
     """
     Create Dataset and Dataloader classes of the S3DIS dataset, for
     the phases required (`train`, `test`).
@@ -253,10 +255,10 @@ if __name__ == '__main__':
         dist = hilbert_curve.distance_from_coordinates(coords)
         print(f'distance(x={coords}) = {dist}')
     #
-    datasets, dataloaders, num_classes = get_s3dis_dataloaders(root_dir=root_dir,
-                                                               phases=phases,
-                                                               batch_size=batch_size,
-                                                               category=category)
+    datasets, dataloaders, num_classes = get_partnet_dataloaders(root_dir=root_dir,
+                                                                 phases=phases,
+                                                                 batch_size=batch_size,
+                                                                 category=category)
 
     for phase in phases:
         print(phase.upper())
