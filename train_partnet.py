@@ -196,7 +196,7 @@ def main(args):
         config = best_state['config']
 
     # create a checkpoint directory
-    model_dir = utl.generate_experiment_dir(args.model_dir, config, prefix_str='S3DIS-hilbert')
+    model_dir = utl.generate_experiment_dir(args.model_dir, config, prefix_str='PartNet-'+config['category']+'-hilbert')
 
     # configure logger
     utl.configure_logger(model_dir, args.loglevel.upper())
@@ -236,7 +236,6 @@ if __name__ == '__main__':
     parser.add_argument('--architecture', default='res8-knn', type=str, help='architecture')
     parser.add_argument('--hyperpara_search', action='store_true', help='random choose a hyper parameter')
     parser.add_argument('--use_tnet', default=False, type=bool, help='random choose a hyper parameter')
-    # parser.add_argument('--use_knn', default=False, type=bool, help='random choose a hyper parameter')
     parser.add_argument('--n_points', default=10000, type=int)
     args = parser.parse_args()
 
