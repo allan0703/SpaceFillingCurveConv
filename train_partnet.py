@@ -220,7 +220,7 @@ if __name__ == '__main__':
                         help='index of GPU to use (0-indexed); if multi_gpu then value is ignored')
     parser.add_argument('--state', default=None, type=str, help='path for best state to load (pre-trained model)')
     parser.add_argument('--in_channels', default=3, type=int, help='input channel size')
-    parser.add_argument('--batch_size', default=2, type=int, help='batch size')
+    parser.add_argument('--batch_size', default=8, type=int, help='batch size')
     parser.add_argument('--kernel_size', default=5, type=int)
     parser.add_argument('--channels', default=64, type=int)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
