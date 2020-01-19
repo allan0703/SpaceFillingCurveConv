@@ -6,7 +6,7 @@ import torch.nn as nn
 
 from tqdm import tqdm
 import config as cfg
-import load_s3dis_preorder as ds
+import load_partnet_preorder as ds
 import architecture_knn as res
 
 import utils as utl
@@ -32,6 +32,7 @@ def train(config, model_dir, writer):
     """
     phases = ['train', 'test']
     # phases = ['test', 'train']
+    # todo: config, and check the hilbert curve
     datasets, dataloaders, num_classes = ds.get_s3dis_dataloaders(root_dir=config['root_dir'],
                                                                   phases=phases,
                                                                   batch_size=config['batch_size'],
@@ -111,7 +112,7 @@ def train(config, model_dir, writer):
             for step_number, batchdata in enumerate(tqdm(dataloaders[phase],
                                                          desc='[{}/{}] {} '.format(epoch + 1, config['max_epochs'],
                                                                                    phase))):
-                data = torch.cat((batchdata.pos, batchdata.x), dim=2).transpose(1, 2).to(device, dtype=torch.float)
+                data = batchdata.pos.transpose(1, 2).to(device, dtype=torch.float)
                 label = batchdata.y.to(device, dtype=torch.long)
                 # should we release the memory?
                 # todo: add data augmentation
@@ -211,15 +212,15 @@ def main(args):
 if __name__ == '__main__':
     parser = ArgumentParser(description='Train a point cloud classification network using 1D convs and hilbert order.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--root_dir', type=str, default='/home/wangh0j/data/sfc/S3DIS',
-                        help='root directory containing S3DIS data')
+    parser.add_argument('--root_dir', type=str, default='/data/sfc/partnet',
+                        help='root directory containing Partnet data')
     parser.add_argument('--model_dir', type=str, default='log/')
     parser.add_argument('--multi_gpu', default=False, action='store_true', help='use multiple GPUs (all available)')
     parser.add_argument('--gpu', default=0, type=int,
                         help='index of GPU to use (0-indexed); if multi_gpu then value is ignored')
     parser.add_argument('--state', default=None, type=str, help='path for best state to load (pre-trained model)')
-    parser.add_argument('--in_channels', default=9, type=int, help='input channel size')
-    parser.add_argument('--batch_size', default=32, type=int, help='batch size')
+    parser.add_argument('--in_channels', default=3, type=int, help='input channel size')
+    parser.add_argument('--batch_size', default=2, type=int, help='batch size')
     parser.add_argument('--kernel_size', default=5, type=int)
     parser.add_argument('--channels', default=64, type=int)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
@@ -227,13 +228,13 @@ if __name__ == '__main__':
     parser.add_argument('--augment', action='store_true', help='use augmentation in training')
     parser.add_argument('--random_seed', default=1, type=int, help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str, help='logging level')
-    parser.add_argument('--category', default=5, type=int, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
+    parser.add_argument('--category', default='Bed', type=str, help='category for training a model')
     parser.add_argument('--hilbert_level', default=7, type=int, help='hilbert curve level')
     parser.add_argument('--architecture', default='res8-knn', type=str, help='architecture')
     parser.add_argument('--hyperpara_search', action='store_true', help='random choose a hyper parameter')
     parser.add_argument('--use_tnet', default=False, type=bool, help='random choose a hyper parameter')
     # parser.add_argument('--use_knn', default=False, type=bool, help='random choose a hyper parameter')
-    parser.add_argument('--n_points', default=4096, type=int)
+    parser.add_argument('--n_points', default=10000, type=int)
     args = parser.parse_args()
 
     main(args)
