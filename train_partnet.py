@@ -18,7 +18,10 @@ import metrics as metrics
 # random.seed(0)
 
 # https://pytorch.org/docs/stable/notes/randomness.html
-
+clss = ['Bag', 'Bed', 'Bottle', 'Bowl', 'Chair', 'Clock', 'Dishwasher', 'Display', 'Door', 'Earphone',  # 0-9
+        'Faucet', 'Hat', 'Keyboard', 'Knife', 'Lamp', 'Laptop', 'Microwave', 'Mug', 'Refrigerator', 'Scissors',
+        # 10-19
+        'StorageFurniture', 'Table', 'TrashCan', 'Vase']  # 20-23
 
 def train(config, model_dir, writer):
     """
@@ -172,7 +175,7 @@ def train(config, model_dir, writer):
 
             file_name = os.path.join(model_dir, 'best_state.pth')
             torch.save(best_state, file_name)
-            logging.info('saved checkpoint in {}'.format(file_name))
+            logging.info('saved checkpointTable in {}'.format(file_name))
 
         # we check for early stopping when we have trained a min number of epochs
         if epoch >= config['min_epochs'] and best_state['num_epochs_since_best_acc'] >= config['early_stopping']:
@@ -230,7 +233,7 @@ if __name__ == '__main__':
     parser.add_argument('--augment', action='store_true', help='use augmentation in training')
     parser.add_argument('--random_seed', default=1, type=int, help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str, help='logging level')
-    parser.add_argument('--category', default='Bed', type=str, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
+    parser.add_argument('--category', default=1, type=int, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
     parser.add_argument('--level', default=3, type=int, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
     parser.add_argument('--hilbert_level', default=7, type=int, help='hilbert curve level')
     parser.add_argument('--architecture', default='res8-knn', type=str, help='architecture')
@@ -238,7 +241,8 @@ if __name__ == '__main__':
     parser.add_argument('--use_tnet', default=False, type=bool, help='random choose a hyper parameter')
     parser.add_argument('--n_points', default=10000, type=int)
     args = parser.parse_args()
-
+    args.category = clss[args.category]
     main(args)
 
+    # todo: visualize
 
