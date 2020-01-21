@@ -191,7 +191,7 @@ def train(config, model_dir, writer):
 def main(args):
     # given program arguments, generate a config file
     config = cfg.generate_config(args)
-
+    print(config)
     # if given a best state then we load it's config
     if args.state:
         logging.info('loading config from {}'.format(args.state))
