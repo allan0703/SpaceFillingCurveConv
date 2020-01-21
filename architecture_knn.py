@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import logging
 from torch.nn import Sequential as Seq, Linear as Lin, Conv1d, Conv2d
-from torch_edge import DenseDilatedKnnGraph, batched_index_select
+# from torch_edge import DenseDilatedKnnGraph, batched_index_select
 
 
 # __all__ = ['resnet18', 'resnet50', 'resnet101']
@@ -57,38 +57,37 @@ class MLP(Seq):
         super(MLP, self).__init__(*m)
 
 
-class BasicConv2(Seq):
-    def __init__(self, channels, k=1, stride=1, dilation=1, act='relu', norm=True, bias=False,
+class BasicConv2(Seq): #putongde juanjiceng
+    def __init__(self, channels, kernel_size=1, stride=1, dilation=1, act='relu', norm=True, bias=False,
                  dropout=False, drop_p=0.5, **kwargs):
         super(BasicConv2, self).__init__()
-        padding = k // 2
+        padding = kernel_size // 2
         m = []
-        m.append(Conv1d(channels[0], channels[1], kernel_size=k, stride=stride,
+        m.append(Conv2d(channels[0], channels[1], kernel_size=[kernel_size,kernel_size], stride=stride,
                         padding=dilation * padding, bias=bias, dilation=dilation, **kwargs))
         if dropout:
             m.append(nn.Dropout(p=drop_p))
         if norm:
-            m.append(nn.BatchNorm1d(channels[1]))
+            m.append(nn.BatchNorm2d(channels[1]))
         if act:
             m.append(act_layer(act))
         self.body = nn.Sequential(*m)
 
-    def forward(self, x, edge_index=None):
+    def forward(self, x):
         x = self.body(x)
         return x
 
 
 class BasicConv(Seq):
-    def __init__(self, channels, kernel_size=5, knn=9, stride=1, dilation=1, act='relu', norm=True, bias=False,
+    def __init__(self, channels, kernel_size=3, multi_order=4, stride=1, dilation=1, act='relu', norm=True, bias=False,
                  dropout=False, drop_p=0.5, use_knn=False, **kwargs):
         super(BasicConv, self).__init__()
-        # padding = knn // 2
 
-        self.conv1 = Conv2d(channels[0], channels[0], kernel_size=[1, knn], stride=stride,
-                            bias=bias, dilation=dilation, **kwargs)
-        self.bn = nn.BatchNorm1d(channels[0])
+        self.conv1 = Conv2d(channels[0], channels[1], kernel_size=[kernel_size, kernel_size], stride=stride, padding = kernel_size // 2,
+                            bias=bias, dilation=dilation, **kwargs) #zheliyao keep b*c*4096*t baozheng houliangwei
+        self.bn = nn.BatchNorm2d(channels[1])
         self.act = nn.ReLU(inplace=True)
-
+        '''
         padding = kernel_size // 2
         conv2 = [Conv1d(channels[0], channels[1], kernel_size=kernel_size, stride=stride,
                         padding=dilation * padding, bias=bias, dilation=dilation, **kwargs)]
@@ -99,18 +98,19 @@ class BasicConv(Seq):
         if act:
             conv2.append(act_layer(act))
         self.conv2 = Seq(*conv2)
+        '''
 
-    def forward(self, x, edge_index=None):
-        x_i = batched_index_select(x, edge_index)
-        x = self.act(self.bn(self.conv1(x_i).squeeze(-1)))
-        x = self.conv2(x)
+    def forward(self, x):
+        # x = b *c *n *t
+        x = self.act(self.bn(self.conv1(x)))
+        #x = self.conv2(x)
         return x
 
 
 class BasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, in_channels, out_channels, stride=1, kernel_size=5, knn=9, downsample=None, groups=1,
+    def __init__(self, in_channels, out_channels, stride=1, kernel_size=3, multi_order=4, downsample=None, groups=1,
                  base_width=64, dilation=1):
         super(BasicBlock, self).__init__()
         if groups != 1 or base_width != 64:
@@ -120,8 +120,9 @@ class BasicBlock(nn.Module):
             raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
 
         # self.knn = DenseDilatedKnnGraph(k, 1, stochastic, epsilon)
-        self.conv1 = BasicConv([in_channels, out_channels], stride=stride, kernel_size=kernel_size, knn=knn)
-        self.conv2 = BasicConv([out_channels, out_channels], kernel_size=kernel_size, knn=knn, act=None)
+
+        self.conv1 = BasicConv([in_channels, out_channels], stride=stride, kernel_size=kernel_size)
+        self.conv2 = BasicConv([out_channels, out_channels], kernel_size=kernel_size, act=None) #zhelishibushixiecheng in_channels
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         # # Zero-initialize the last BN in each residual branch,
@@ -132,14 +133,14 @@ class BasicBlock(nn.Module):
         #         if isinstance(m, BasicBlock):
         #             nn.init.constant_(m.bn2.weight, 0)
 
-    def forward(self, x, edge_index):
+    def forward(self, x):
 
         # feats = [self.head(inputs, self.knn(inputs[:, 0:3]))]
         identity = x
-        out = self.conv2(self.conv1(x, edge_index), edge_index)
+        out = self.conv2(self.conv1(x))
 
         if self.downsample is not None:
-            identity = self.downsample(x, edge_index)
+            identity = self.downsample(x)
 
         out += identity
         out = self.relu(out)  # zhegedifang hai xuyao ma
@@ -232,9 +233,9 @@ class TNet(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, kernel_size=5, knn=9, in_channels=3, num_classes=40, channels=64,
+    def __init__(self, block, layers, kernel_size=3, multi_order=4, in_channels=9, num_classes=40, channels=64,
                  zero_init_residual=False,
-                 groups=1, width_per_group=64, replace_stride_with_dilation=None, use_tnet=False, n_points=1024):
+                 groups=1, width_per_group=64, replace_stride_with_dilation=None, use_tnet=False, n_points=1024): #layers = [1,1,1,1]
         super(ResNet, self).__init__()  # groups shi shenme ?
 
         self.channels = channels
@@ -242,7 +243,8 @@ class ResNet(nn.Module):
         self.dropout = 0.5
         self.n_points = n_points
         self.use_tnet = use_tnet
-        self.knn = DenseDilatedKnnGraph(knn, 1)
+        self.multi_order = multi_order
+
         # self.knn = DenseDilatedKnnGraph(k, 1)
 
         if replace_stride_with_dilation is None:
@@ -256,9 +258,9 @@ class ResNet(nn.Module):
         self.base_width = width_per_group  #
         if self.use_tnet:
             self.tnet3 = TNet(3, self.n_points)
-        self.conv1 = BasicConv([in_channels, channels], kernel_size, knn)
-        self.layer1 = self._make_layer(block, 128, layers[0], kernel_size, knn)
-        self.layer2 = self._make_layer(block, 256, layers[1], kernel_size, knn, stride=1,
+        self.conv1 = BasicConv([in_channels, channels], kernel_size =kernel_size) #xianzuoyige shengwei
+        self.layer1 = self._make_layer(block, 128, layers[0], kernel_size)
+        self.layer2 = self._make_layer(block, 256, layers[1], kernel_size, stride=1,
                                        dilate=replace_stride_with_dilation[0])
         # self.layer3 = self._make_layer(block, 256, layers[2], k=k, stride=1,
         #                                dilate=replace_stride_with_dilation[1])
@@ -266,12 +268,13 @@ class ResNet(nn.Module):
         #                                dilate=replace_stride_with_dilation[2])
         # expand fc layers.
         # add a global feature
-        self.maxpool1 = nn.AdaptiveMaxPool1d(1)
-        self.maxpool4 = nn.MaxPool1d(kernel_size=9, stride=1, padding=4)
-        self.avgpool4 = nn.AvgPool1d(kernel_size=9, stride=1, padding=4)
-        self.pred1 = BasicConv([3 * (256 * block.expansion) + 128, 512], kernel_size=kernel_size, knn=knn)
-        self.pred2 = BasicConv([512, 256], kernel_size=kernel_size, knn=knn, dropout=True, drop_p=self.dropout)
-        self.pred3 = nn.Conv1d(256, num_classes, 1)
+        self.maxpool1 = nn.AdaptiveMaxPool2d((1, 1))
+        self.maxpool4 = nn.MaxPool2d(kernel_size=3, stride=1, padding=1) #baochi le weidu
+        self.maxpoolpre = nn.MaxPool2d(kernel_size=[1,4], stride=1)
+        self.avgpool4 = nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
+        self.pred1 = BasicConv([3 * (256 * block.expansion) + 128, 512], kernel_size=kernel_size)  #zhegedifang de weidu
+        self.pred2 = BasicConv([512, 256], kernel_size=kernel_size, dropout=True, drop_p=self.dropout)
+        self.pred3 = nn.Conv1d(256, num_classes,1)
 
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
@@ -280,7 +283,7 @@ class ResNet(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-    def _make_layer(self, block, channels, n_block, kernel_size=5, knn=9, stride=1, dilate=False):
+    def _make_layer(self, block, channels, n_block, kernel_size=3, stride=1, dilate=False):
         downsample = None
         previous_dilation = self.dilation
         if dilate:
@@ -289,28 +292,28 @@ class ResNet(nn.Module):
         if stride != 1 or self.channels != channels * block.expansion:
             downsample = BasicConv2([self.channels, channels * block.expansion], stride=stride, act=None)
 
-        layers = [block(self.channels, channels, stride, kernel_size, knn, downsample, self.groups,
+        layers = [block(self.channels, channels, stride, kernel_size, self.multi_order, downsample, self.groups,
                         self.base_width, previous_dilation)]
         self.channels = channels * block.expansion
         for _ in range(1, n_block):
-            layers.append(block(self.channels, channels, kernel_size=kernel_size, knn=knn, groups=self.groups,
+            layers.append(block(self.channels, channels, kernel_size=kernel_size, multi_order=self.multi_order, groups=self.groups,
                                 base_width=self.base_width, dilation=self.dilation))
 
         return MultiSeq(*layers)
 
-    def forward(self, x):
+    def forward(self, x): #now is b * 4 * c *n
         if self.use_tnet:
             aligned_pos = self.tnet3(x[:, :3, :])
             x = torch.cat((aligned_pos, x[:, 3:, :]), dim=1)
-        edge_index = self.knn(x[:, :3, :].detach())
+        #edge_index = self.knn(x[:, :, :3, :].detach()) #now is b * 4 * c *n
 
-        x = self.conv1(x, edge_index)
+        x = self.conv1(x) # b*64*n*t
         # logging.info('Size after conv1: {}'.format(x.size()))
 
-        x = self.layer1(x, edge_index)
+        x = self.layer1(x)
         # logging.info('Size after layer1: {}'.format(x.size()))
         max_1 = self.maxpool1(x)
-        x = self.layer2(x, edge_index)
+        x = self.layer2(x)
         # logging.info('Size after layer2: {}'.format(x.size()))
         # x = self.layer3(x, edge_index)
         # logging.info('Size after layer3: {}'.format(x.size()))
@@ -319,31 +322,33 @@ class ResNet(nn.Module):
         avg_4 = self.avgpool4(x)
         # logging.info('Size after layer4: {}'.format(x.size()))
 
-        x = torch.cat((x, max_1.repeat((1, 1, self.n_points)), max_4, avg_4), dim=1)
+        x = torch.cat((x, max_1.repeat((1, 1, self.n_points, self.multi_order)), max_4, avg_4), dim=1)
         # logging.info('Size after flatten: {}'.format(x.size()))
         # x = self.prediction(x)
         # x = self.prediction(x)
-        x = self.pred3(self.pred2(self.pred1(x, edge_index), edge_index))
+        x = self.pred2(self.pred1(x))#get b*c*n*order
+        x = self.maxpoolpre(x).squeeze(-1) #get b*c*n
+        x = self.pred3(x)
         return x
 
 
-def _resnet(block, layers, kernel_size=5, knn=9, **kwargs):
-    model = ResNet(block, layers, kernel_size, knn, **kwargs)
+def _resnet(block, layers, kernel_size=3, **kwargs): #layers shi duo shaoceng
+    model = ResNet(block, layers, kernel_size, **kwargs)
     return model
 
 
-def sfc_resnet_8(kernel_size=5, **kwargs):
+def sfc_resnet_8(kernel_size=3, **kwargs):
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
     """
     return _resnet(BasicBlock, [1, 1, 1, 1], kernel_size, **kwargs)
 
 
-def resnet18(kernel_size=5, knn=9, **kwargs):
+def resnet18(kernel_size=3,  **kwargs):
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
     """
-    return _resnet(BasicBlock, [2, 2, 2, 2], kernel_size, knn, **kwargs)
+    return _resnet(BasicBlock, [2, 2, 2, 2], kernel_size, **kwargs)
 
 
 if __name__ == '__main__':
@@ -354,11 +359,9 @@ if __name__ == '__main__':
     logger = logging.getLogger()
     logger.setLevel(numeric_level)
 
-    x = torch.rand((4, 9, 1024), dtype=torch.float)
-    kernel_size = 5
-    knn = 9
-
-    net = sfc_resnet_8(kernel_size=kernel_size, knn=knn, in_channels=9, num_classes=40, n_points=1024, use_tnet=False)
+    x = torch.rand((5, 9, 1024, 4), dtype=torch.float)
+    kernel_size = 3
+    net = sfc_resnet_8(kernel_size=kernel_size, in_channels=9, num_classes=40, n_points=1024, use_tnet=False)
 
     out = net(x)
     # out = out.mean(dim=1)

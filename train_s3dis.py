@@ -39,7 +39,7 @@ def train(config, model_dir, writer):
                                                                   augment=config['augment'])
 
     # add number of classes to config
-    config['num_classes'] = num_classes
+    config['num_classes'] = 13 #num_classes  zanshi bunengyong
 
     # we now set GPU training parameters
     # if the given index is not available then we use index 0
@@ -54,8 +54,8 @@ def train(config, model_dir, writer):
     # we load the model defined in the config file
     # todo: now the code is IO bound. No matter which network we use, it is similar speed.
     model = res.sfc_resnet_8(in_channels=config['in_channels'], num_classes=config['num_classes'],
-                             kernel_size=config['kernel_size'], knn=config['knn'], channels=config['channels'],
-                             use_tnet=config['use_tnet'], n_points=config['n_points']).to(device)
+                             kernel_size=config['kernel_size'], channels=config['channels'],
+                             use_tnet=config['use_tnet'], n_points=config['n_points']).to(device)   #keyiqudiao knn
     logging.info('the number of params is {: .2f} M'.format(utl.count_model_params(model) / (1e6)))
     # if use multi_gpu then convert the model to DataParallel
     if config['multi_gpu']:
@@ -111,14 +111,15 @@ def train(config, model_dir, writer):
             for step_number, batchdata in enumerate(tqdm(dataloaders[phase],
                                                          desc='[{}/{}] {} '.format(epoch + 1, config['max_epochs'],
                                                                                    phase))):
-                data = torch.cat((batchdata.pos, batchdata.x), dim=2).transpose(1, 2).to(device, dtype=torch.float)
-                label = batchdata.y.to(device, dtype=torch.long)
+                data = torch.cat((batchdata.pos, batchdata.x), dim=1).to(device, dtype=torch.float)  #zheli xuyao gaiyixia ,now is 32*9*4096*4
+                label = batchdata.y.to(device, dtype=torch.long)#now is 32*4096
                 # should we release the memory?
+                #zhegedifang  de data youmeiyou batch weidu a
                 # todo: add data augmentation
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
-                    out = model(data)
+                    out = model(data)   #zhe li data shi b*9*4096*(T)
                     loss = criterion(out, label)
 
                     if phase == 'train':
@@ -211,7 +212,7 @@ def main(args):
 if __name__ == '__main__':
     parser = ArgumentParser(description='Train a point cloud classification network using 1D convs and hilbert order.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--root_dir', type=str, default='/home/wangh0j/data/sfc/S3DIS',
+    parser.add_argument('--root_dir', type=str, default='/home/wangh0j/data/sfc/S3DIS_multiorder',
                         help='root directory containing S3DIS data')
     parser.add_argument('--model_dir', type=str, default='log/')
     parser.add_argument('--multi_gpu', default=False, action='store_true', help='use multiple GPUs (all available)')
@@ -220,8 +221,8 @@ if __name__ == '__main__':
     parser.add_argument('--state', default=None, type=str, help='path for best state to load (pre-trained model)')
     parser.add_argument('--in_channels', default=9, type=int, help='input channel size')
     parser.add_argument('--batch_size', default=32, type=int, help='batch size')
-    parser.add_argument('--kernel_size', default=5, type=int)
-    parser.add_argument('--knn', default=9, type=int)
+    parser.add_argument('--kernel_size', default=3, type=int)
+    #parser.add_argument('--knn', default=9, type=int)
     parser.add_argument('--channels', default=64, type=int)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
     parser.add_argument('--bias', action='store_true', help='use bias in convolutions')
@@ -230,7 +231,7 @@ if __name__ == '__main__':
     parser.add_argument('--loglevel', default='INFO', type=str, help='logging level')
     parser.add_argument('--category', default=5, type=int, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
     parser.add_argument('--hilbert_level', default=7, type=int, help='hilbert curve level')
-    parser.add_argument('--architecture', default='res8-knn', type=str, help='architecture')
+    parser.add_argument('--architecture', default='res8-multi_order', type=str, help='architecture')
     parser.add_argument('--hyperpara_search', action='store_true', help='random choose a hyper parameter')
     parser.add_argument('--use_tnet', default=False, type=bool, help='random choose a hyper parameter')
     # parser.add_argument('--use_knn', default=False, type=bool, help='random choose a hyper parameter')
