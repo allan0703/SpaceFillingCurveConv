@@ -326,10 +326,11 @@ class ResNet(nn.Module):
         # logging.info('Size after flatten: {}'.format(x.size()))
         # x = self.prediction(x)
         # x = self.prediction(x)
-        x = self.pred2(self.pred1(x))#get b*c*n*order
+        x = self.pred1(x)
+        x = self.pred2(x)#get b*c*n*order
         x = self.maxpoolpre(x).squeeze(-1) #get b*c*n
         x = self.pred3(x)
-        return x.permute(0,2,1)
+        return x
 
 
 def _resnet(block, layers, kernel_size=3, **kwargs): #layers shi duo shaoceng
@@ -360,9 +361,12 @@ if __name__ == '__main__':
     logger.setLevel(numeric_level)
 
     x = torch.rand((5, 9, 1024, 4), dtype=torch.float)
+    label = torch.randint(40, (5, 1024), dtype=torch.long)
     kernel_size = 3
     net = sfc_resnet_8(kernel_size=kernel_size, in_channels=9, num_classes=40, n_points=1024, use_tnet=False)
 
-    out = net(x)
+    out = net(x) #5*40*1024  yebusuanshi one hot ,zhishi yige jiaocha yanzheng
+    criterion = nn.CrossEntropyLoss()
+    loss = criterion(out, label) #label = 5 * 1024
     # out = out.mean(dim=1)
     logging.info('Output size {}'.format(out.size()))

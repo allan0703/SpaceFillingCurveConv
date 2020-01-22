@@ -119,7 +119,7 @@ def train(config, model_dir, writer):
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
-                    out = model(data)   #zhe li data shi b*9*4096*(T)
+                    out = model(data)   #zhe li data shi b*9*4096*(T) out = batch*n*class
                     loss = criterion(out, label)
 
                     if phase == 'train':

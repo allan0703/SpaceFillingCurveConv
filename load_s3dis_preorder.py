@@ -143,7 +143,9 @@ class S3DIS(InMemoryDataset):
 
                     multi_pos.append(pos[idx, :])
                     multi_x.append(x[idx, :])
-                    multi_y.append(y[idx])
+                    if num_rotation == 0:
+                        multi_y = y[idx]
+                    # multi_y.append(y[idx])
                     # if num_rotation == 0:
                     #     multi_pos = pos[idx,:]
                     #     multi_x = x[idx, :]
@@ -163,11 +165,11 @@ class S3DIS(InMemoryDataset):
                 #     multi_y.append(y[idx])
                 multi_pos = torch.stack(multi_pos, dim=0)
                 multi_x = torch.stack(multi_x, dim=0)
-                multi_y = torch.stack(multi_y, dim=0)
+                # multi_y = torch.stack(multi_y, dim=0)
 
                 multi_pos = multi_pos.permute(2,1,0) # yinggai 4 * n *d haishi n*d*4  bixudeishizheyang yinggai
                 multi_x = multi_x.permute(2,1,0)
-                multi_y = multi_y.permute(1,0)
+                # multi_y = multi_y.permute(1,0)
                 data = Data(pos=multi_pos, x=multi_x, y=multi_y) # get 4N* dimension
 
             if test_area not in rooms[i]:
