@@ -328,7 +328,8 @@ class ResNet(nn.Module):
         # x = self.prediction(x)
         x = self.pred1(x)
         x = self.pred2(x)#get b*c*n*order
-        x = self.maxpoolpre(x).squeeze(-1) #get b*c*n
+        x = self.maxpoolpre(x) #get b*c*n*1  buneng squeeze
+        x = torch.flatten(x, 2)
         x = self.pred3(x)
         return x
 
