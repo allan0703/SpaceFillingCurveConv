@@ -233,9 +233,9 @@ class TNet(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, kernel_size=3, multi_order=4, in_channels=9, num_classes=40, channels=64,
+    def __init__(self, block, layers, kernel_size=3, multi_order=4, in_channels=9, num_classes=13, channels=64,
                  zero_init_residual=False,
-                 groups=1, width_per_group=64, replace_stride_with_dilation=None, use_tnet=False, n_points=1024): #layers = [1,1,1,1]
+                 groups=1, width_per_group=64, replace_stride_with_dilation=None, use_tnet=False, n_points=4096): #layers = [1,1,1,1]
         super(ResNet, self).__init__()  # groups shi shenme ?
 
         self.channels = channels
@@ -274,7 +274,7 @@ class ResNet(nn.Module):
         self.avgpool4 = nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
         self.pred1 = BasicConv([3 * (256 * block.expansion) + 128, 512], kernel_size=kernel_size)  #zhegedifang de weidu
         self.pred2 = BasicConv([512, 256], kernel_size=kernel_size, dropout=True, drop_p=self.dropout)
-        self.pred3 = nn.Conv1d(256, num_classes,1)
+        self.pred3 = nn.Conv1d(256, num_classes, 1)
 
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
@@ -329,7 +329,7 @@ class ResNet(nn.Module):
         x = self.pred2(self.pred1(x))#get b*c*n*order
         x = self.maxpoolpre(x).squeeze(-1) #get b*c*n
         x = self.pred3(x)
-        return x
+        return x.permute(0,2,1)
 
 
 def _resnet(block, layers, kernel_size=3, **kwargs): #layers shi duo shaoceng
