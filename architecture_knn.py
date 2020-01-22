@@ -58,12 +58,12 @@ class MLP(Seq):
 
 
 class BasicConv2(Seq):
-    def __init__(self, channels, k=1, stride=1, dilation=1, act='relu', norm=True, bias=False,
+    def __init__(self, channels, kernel_size=1, stride=1, dilation=1, act='relu', norm=True, bias=False,
                  dropout=False, drop_p=0.5, **kwargs):
         super(BasicConv2, self).__init__()
-        padding = k // 2
+        padding = kernel_size // 2
         m = []
-        m.append(Conv1d(channels[0], channels[1], kernel_size=k, stride=stride,
+        m.append(Conv1d(channels[0], channels[1], kernel_size=kernel_size, stride=stride,
                         padding=dilation * padding, bias=bias, dilation=dilation, **kwargs))
         if dropout:
             m.append(nn.Dropout(p=drop_p))
@@ -257,20 +257,20 @@ class ResNet(nn.Module):
         if self.use_tnet:
             self.tnet3 = TNet(3, self.n_points)
         self.conv1 = BasicConv([in_channels, channels], kernel_size, knn)
-        self.layer1 = self._make_layer(block, 128, layers[0], kernel_size, knn)
-        self.layer2 = self._make_layer(block, 256, layers[1], kernel_size, knn, stride=1,
+        self.layer1 = self._make_layer(block, 64, layers[0], kernel_size, knn)
+        self.layer2 = self._make_layer(block, 128, layers[1], kernel_size, knn, stride=1,
                                        dilate=replace_stride_with_dilation[0])
-        # self.layer3 = self._make_layer(block, 256, layers[2], k=k, stride=1,
-        #                                dilate=replace_stride_with_dilation[1])
-        # self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=1,
-        #                                dilate=replace_stride_with_dilation[2])
+        self.layer3 = self._make_layer(block, 256, layers[2], kernel_size, stride=1,
+                                       dilate=replace_stride_with_dilation[1])
+        self.layer4 = self._make_layer(block, 512, layers[3], kernel_size, stride=1,
+                                       dilate=replace_stride_with_dilation[2])
         # expand fc layers.
         # add a global feature
         self.maxpool1 = nn.AdaptiveMaxPool1d(1)
         self.maxpool4 = nn.MaxPool1d(kernel_size=9, stride=1, padding=4)
         self.avgpool4 = nn.AvgPool1d(kernel_size=9, stride=1, padding=4)
-        self.pred1 = BasicConv([3 * (256 * block.expansion) + 128, 512], kernel_size=kernel_size, knn=knn)
-        self.pred2 = BasicConv([512, 256], kernel_size=kernel_size, knn=knn, dropout=True, drop_p=self.dropout)
+        self.pred1 = BasicConv2([3 * (512 * block.expansion) + 64, 512], kernel_size=kernel_size)
+        self.pred2 = BasicConv2([512, 256], kernel_size=kernel_size, dropout=True, drop_p=self.dropout)
         self.pred3 = nn.Conv1d(256, num_classes, 1)
 
         for m in self.modules():
@@ -312,9 +312,9 @@ class ResNet(nn.Module):
         max_1 = self.maxpool1(x)
         x = self.layer2(x, edge_index)
         # logging.info('Size after layer2: {}'.format(x.size()))
-        # x = self.layer3(x, edge_index)
+        x = self.layer3(x, edge_index)
         # logging.info('Size after layer3: {}'.format(x.size()))
-        # x = self.layer4(x, edge_index)
+        x = self.layer4(x, edge_index)
         max_4 = self.maxpool4(x)
         avg_4 = self.avgpool4(x)
         # logging.info('Size after layer4: {}'.format(x.size()))
