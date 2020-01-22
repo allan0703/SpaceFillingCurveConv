@@ -95,7 +95,7 @@ class S3DIS(Dataset):
         points_norm /= points_norm.max(axis=0) + 1e-23
 
         # order points in hilbert order
-        points_voxel = np.floor(points_norm * (2 ** self.p - 1)) #zheli de chengyi shishenmeyisi?
+        points_voxel = np.floor(points_norm * (2 ** self.p - 1))
         hilbert_dist = np.zeros(points_voxel.shape[0])
 
         # todo: we want to try two methods.
@@ -107,7 +107,7 @@ class S3DIS(Dataset):
             # todo: check how much duplicates (multi-points in the same space).
             #  answer is no. p is 7, which partition the space very precise
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, 0:3].astype(int))
-        idx = np.argsort(hilbert_dist)#fanhuide suoyin
+        idx = np.argsort(hilbert_dist)
 
         return pointcloud[idx, :], label[idx]    # todo: label also need indexing.
 
@@ -147,7 +147,7 @@ if __name__ == '__main__':
     logger = logging.getLogger()
     logger.setLevel(numeric_level)
 
-    root_dir = '/home/wangh0j/data/sfc/S3DIS/raw'
+    root_dir = '/data/sfc/indoor3d_sem_seg_hdf5_data'
     phases = ['train', 'test']
     batch_size = 32
     category = 5

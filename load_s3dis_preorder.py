@@ -11,7 +11,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from hilbertcurve.hilbertcurve import HilbertCurve
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-import pandas as pd
+
 
 class S3DIS(InMemoryDataset):
     r"""The (pre-processed) Stanford Large-Scale 3D Indoor Spaces dataset from
@@ -90,13 +90,13 @@ class S3DIS(InMemoryDataset):
         for filename in filenames:
             f = h5py.File(osp.join(self.raw_dir, filename))
             # todo: check the data range
-            xs += torch.from_numpy(f['data'][:]).unbind(0) #features
+            xs += torch.from_numpy(f['data'][:]).unbind(0)
             ys += torch.from_numpy(f['label'][:]).to(torch.long).unbind(0)
 
         test_area = 'Area_{}'.format(self.test_area)
         train_data_list, test_data_list = [], []
         for i, (x, y) in enumerate(tqdm(zip(xs, ys), total=len(xs))):
-            data = Data(pos=x[:, :3], x=x[:, 3:], y=y)  #x y z coordiante
+            data = Data(pos=x[:, :3], x=x[:, 3:], y=y)
 
             if self.pre_filter is not None and not self.pre_filter(data):
                 continue
@@ -107,87 +107,30 @@ class S3DIS(InMemoryDataset):
             if self.hilbert_order:
                 # order points in hilbert order
                 # after normalizaiton, -1 to 1
-                pos, x, y = data.pos, data.x, data.y  # pos x y are tensors
-                multi_pos, multi_x, multi_y = [],[],[]
-                # multi_pos = torch.empty_like(pos)
-                # multi_x = torch.empty_like(x)
-                # multi_y = torch.empty_like(y)
+                pos, x, y = data.pos, data.x, data.y
                 point = (pos.numpy()+1)/2  # normalize to 0, 1
-                points_voxel = np.floor(point * (2 ** self.p - 1)).astype(int) # what's the meaning  n*3  in range(1 - 2**p)
+                points_voxel = np.floor(point * (2 ** self.p - 1)).astype(int)
                 hilbert_dist = np.zeros(points_voxel.shape[0])
-
-                rotation_x = np.transpose([[1, 0, 0], [0, 0, -1], [0, 1, 0]])  # rotate along x coordinate
-                rotation_y = np.transpose([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
-                rotation_z = np.transpose([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
-                rotation_matrices = [np.eye(3), rotation_x, rotation_y, rotation_z]
 
                 # todo: we want to try two methods.
                 # todo: 1. globally along with locally hilbert curve
                 # todo: 2. multi-level of hilbert curve
-                #points_voxel_rotation = np.matmul(points_voxel, rotation_matrices) # n * 12
-
-                for num_rotation in range(4):
-                    points_voxel_rotation = np.matmul(points_voxel, rotation_matrices[num_rotation]).astype(int)  # 4*n * 3
-                    if num_rotation:
-                        points_voxel_rotation[:, num_rotation % 3] += (2 ** self.p - 1) #ping
-                    # step1: rotate point cloud
-                    # loop to calulate hilbert_dist
-                    # put pos, x, y  into a list
-                    #multi_pos.append(pos[idx, :])
-                    # pos = torch.stack(multi_pos, dim=0)
-                    # data = Data(pos=pos, x=x, y=y)
-                    for point_idx in range(points_voxel_rotation.shape[0]):
-                        hilbert_dist[point_idx] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[point_idx, :3])  #want hilbert_dist = n*4
-
-                    idx = np.argsort(hilbert_dist) #fanhui cong da daoxiao de suoyi
-
-                    multi_pos.append(pos[idx, :])
-                    multi_x.append(x[idx, :])
-                    if num_rotation == 0:
-                        multi_y = y[idx]
-                    # multi_y.append(y[idx])
-                    # if num_rotation == 0:
-                    #     multi_pos = pos[idx,:]
-                    #     multi_x = x[idx, :]
-                    #     multi_y = y[idx]
-                    # else:
-                    #     multi_pos = torch.stack((multi_pos, pos[idx, :]), dim=0)
-                    #     multi_x = torch.stack((multi_x, x[idx, :]), dim=0)
-                    #     multi_y = torch.stack((multi_y, y[idx]),  dim=0) #4*n*c
-
-                # multi_pos = pos[idx,:]
-                # multi_x = x[idx, :]
-                # multi_y = y[idx]
-
-                #     multi_pos.append(pos[idx, :]) # get N_0 * 3
-                #         # pos = torch.stack(multi_pos, dim=0)
-                #     multi_x.append(x[idx, :])
-                #     multi_y.append(y[idx])
-                multi_pos = torch.stack(multi_pos, dim=0)
-                multi_x = torch.stack(multi_x, dim=0)
-                # multi_y = torch.stack(multi_y, dim=0)
-
-                multi_pos = multi_pos.permute(2,1,0) # yinggai 4 * n *d haishi n*d*4  bixudeishizheyang yinggai
-                multi_x = multi_x.permute(2,1,0)
-                # multi_y = multi_y.permute(1,0)
-                data = Data(pos=multi_pos, x=multi_x, y=multi_y) # get 4N* dimension
+                for point_idx in range(points_voxel.shape[0]):
+                    hilbert_dist[point_idx] = self.hilbert_curve.distance_from_coordinates(points_voxel[point_idx, :])
+                idx = np.argsort(hilbert_dist)
+                pos = pos[idx, :]
+                x = x[idx, :]
+                y = y[idx]
+                data = Data(pos=pos, x=x, y=y)
 
             if test_area not in rooms[i]:
                 train_data_list.append(data)
             else:
                 test_data_list.append(data)
 
-        torch.save(self.collate(train_data_list), self.processed_paths[0]) # data.pos = 4*4096*3
+        torch.save(self.collate(train_data_list), self.processed_paths[0])
         torch.save(self.collate(test_data_list), self.processed_paths[1])
 
-
-def dataToCsv(file, data, columns):
-    data = list(data)
-    columns = list(columns)
-    file_data = pd.DataFrame(data, index=range(len(data)), columns=columns)
-    # file_target = pd.DataFrame(target, index=range(len(data)), columns=['target'])
-    # file_all = file_data.join(file_target, how='outer')
-    file_data.to_csv(file)
 
 def get_s3dis_dataloaders(root_dir, phases, batch_size, category=5, augment=False):
     """
@@ -208,13 +151,13 @@ def get_s3dis_dataloaders(root_dir, phases, batch_size, category=5, augment=Fals
 
     dataloaders = {x: DenseDataLoader(datasets[x], batch_size=batch_size, num_workers=4, shuffle=(x == 'train'))
                    for x in phases}
-    return datasets, dataloaders, 13 #datasets['train'].num_classes
+    return datasets, dataloaders, datasets['train'].num_classes
 
 
 if __name__ == '__main__':
     parser = ArgumentParser(description='Train a point cloud classification network using 1D convs and hilbert order.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--root_dir', type=str, default='/home/wangh0j/data/sfc/S3DIS_multiorder',
+    parser.add_argument('--root_dir', type=str, default='/data/sfc/S3DIS',
                         help='root directory containing S3DIS data')
     args = parser.parse_args()
 
@@ -246,9 +189,9 @@ if __name__ == '__main__':
     for phase in phases:
         print(phase.upper())
         print('\tDataset {} Dataloder {}'.format(len(datasets[phase]), len(dataloaders[phase])))
-        for i, data in enumerate(dataloaders[phase]):  #what's the meaning?
+        for i, data in enumerate(dataloaders[phase]):
             print(data.pos.shape)
-            x = torch.cat((data.pos, data.x), dim=3).reshape(batch_size, 9, -1, 4) #zheli yao gaiyixia  data.pos = 4 * 4096 * 3 suoyi dim = 1
+            x = torch.cat((data.pos, data.x), dim=2).transpose(1, 2)
             seg_label = data.y
             print('\tData {} Seg Label {}'.format(x.size(), seg_label.size()))
             if i >= 3:
