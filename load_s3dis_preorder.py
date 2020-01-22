@@ -189,6 +189,7 @@ def dataToCsv(file, data, columns):
     # file_all = file_data.join(file_target, how='outer')
     file_data.to_csv(file)
 
+
 def get_s3dis_dataloaders(root_dir, phases, batch_size, category=5, augment=False):
     """
     Create Dataset and Dataloader classes of the S3DIS dataset, for
