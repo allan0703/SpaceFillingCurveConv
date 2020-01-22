@@ -260,9 +260,9 @@ class ResNet(nn.Module):
         self.layer1 = self._make_layer(block, 64, layers[0], kernel_size, knn)
         self.layer2 = self._make_layer(block, 128, layers[1], kernel_size, knn, stride=1,
                                        dilate=replace_stride_with_dilation[0])
-        self.layer3 = self._make_layer(block, 256, layers[2], kernel_size, stride=1,
+        self.layer3 = self._make_layer(block, 256, layers[2], kernel_size, knn, stride=1,
                                        dilate=replace_stride_with_dilation[1])
-        self.layer4 = self._make_layer(block, 512, layers[3], kernel_size, stride=1,
+        self.layer4 = self._make_layer(block, 512, layers[3], kernel_size, knn, stride=1,
                                        dilate=replace_stride_with_dilation[2])
         # expand fc layers.
         # add a global feature
