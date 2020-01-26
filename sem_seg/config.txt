@@ -31,5 +31,5 @@ multi_gpu = False
 # Paths to data and checkpoints
 # -----------------------------------#
 
-root_dir = 
-model_dir = 
+root_dir = /home/wangh0j/data/sfc/S3DIS
+model_dir =  /home/wangh0j/SFC-Convs/log/

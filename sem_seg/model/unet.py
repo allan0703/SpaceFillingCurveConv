@@ -105,9 +105,9 @@ def unet(input_size=3, num_classes=21, kernel_size=27):
 
 if __name__ == '__main__':
     x = torch.rand((4, 4, 4096), dtype=torch.float)
-    coords = torch.rand((4, 3, 4096), dtype=torch.float)
+    coords = torch.rand((4, 5, 4096), dtype=torch.float)
     print('Input size {}'.format(x.size()))
     net = UNet(in_channels=4, out_channels=13, init_features=32)
-    out = net(x)
+    out = net(x, coords)
 
     print('Output size {}'.format(out.size()))

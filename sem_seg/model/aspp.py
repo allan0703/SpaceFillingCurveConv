@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import logging
 import time
 
-from .weighted_conv import WeightedConv1D
+from model.weighted_conv import WeightedConv1D
 
 __all__ = ['aspp']
 
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     device = torch.device('cpu')
 
     feats = torch.rand((4, 512, 128), dtype=torch.float).to(device)
-    coords = torch.rand((4, 3, 128), dtype=torch.float).to(device)
+    coords = torch.rand((4, 5, 128), dtype=torch.float).to(device)
     k = 21
 
     net = aspp(in_channels=512, out_channels=256, output_stride=16, kernel_size=k).to(device)

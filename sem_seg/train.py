@@ -211,9 +211,9 @@ if __name__ == '__main__':
                                         'on Shapenet pointclouds.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('--root_dir', required=True, type=str,
+    parser.add_argument('--root_dir', default='/home/wangh0j/data/sfc/S3DIS/raw', required=True, type=str,
                         help='root directory containing S3DIS data')
-    parser.add_argument('--model_dir', required=True, type=str,
+    parser.add_argument('--model_dir', default='/home/wangh0j/SFC-Convs/log/', required=True, type=str,
                         help='root directory containing S3DIS data')
     parser.add_argument('--test_area', default=5, type=int,
                         help='area to use for testing')

@@ -333,8 +333,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    args.root_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/S3DIS/indoor3d_sem_seg_hdf5_data'
-    args.model_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/3d_datasets/S3DIS/indoor3d_sem_seg_hdf5_data'
+    args.root_dir = '/home/wangh0j/data/sfc/S3DIS/raw'
+    args.model_dir = '/home/wangh0j/SFC-Convs/log/'
 
     dataset = S3DIS(args)
     dataloaders = dataset.get_dataloaders()

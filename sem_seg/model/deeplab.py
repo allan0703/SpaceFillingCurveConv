@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .xception import AlignedXception
-from .resnet import resnet18, resnet101
-from .aspp import aspp
-from .decoder import decoder
+from model.xception import AlignedXception
+from model.resnet import resnet18, resnet101
+from model.aspp import aspp
+from model.decoder import decoder
 
 __all__ = ['deeplab']
 
@@ -48,7 +48,7 @@ def deeplab(backbone='resnet101', input_size=3, output_stride=16, num_classes=21
 
 if __name__ == '__main__':
     x = torch.rand((4, 4, 4096), dtype=torch.float)
-    coords = torch.rand((4, 3, 4096), dtype=torch.float)
+    coords = torch.rand((4, 5, 4096), dtype=torch.float)
     print('Input size {}'.format(x.size()))
     net = deeplab(input_size=4, num_classes=13, backbone='resnet18', kernel_size=9)
     out = net(x, coords)
