@@ -1,0 +1,34 @@
+# -----------------------------------#
+#      Configuration Parameters      #
+# -----------------------------------#
+
+# Dataset and Model
+# -----------------------------------#
+
+dataset = S3DIS
+model = unet
+backbone = xception
+num_classes = 13
+
+# Training hyperparameters
+# -----------------------------------#
+
+test_area = 2
+kernel_size = 9
+num_feats = 4
+lr = 1.00e-03
+batch_size = 32
+augment = False
+bias = False
+
+# GPUs
+# -----------------------------------#
+
+gpu_index = 0
+multi_gpu = False
+
+# Paths to data and checkpoints
+# -----------------------------------#
+
+root_dir = 
+model_dir = 
