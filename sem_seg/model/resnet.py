@@ -3,7 +3,7 @@ import torch.nn as nn
 import logging
 import time
 
-from .weighted_conv import WeightedConv1D
+from model.weighted_conv import WeightedConv1D
 
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']
@@ -54,8 +54,8 @@ class BasicBlock(nn.Module):
 
         identity = x
 
-        out = self.conv1(x, coords, self.sigma)
-        coords = coords[:, :, ::self.stride]
+        out = self.conv1(x, coords, self.sigma)   #coords
+        coords = coords[:, :, ::self.stride]      # batch * 3 *N
 
         #
         out = self.bn1(out)
@@ -216,15 +216,15 @@ class ResNet(nn.Module):
         # print('Size after conv1: {}'.format(x.size()))
         x = self.maxpool(x)
         # print('Size after maxpool: {}'.format(x.size()))
-        coords = coords[:, :, ::4]
+        coords = coords[:, :, ::4]  # what's meaning? why
         x, coords = self.layer1((x, coords))
         # print('Size after layer1: {}'.format(x.size()))
         low_level_feats = x
-        x, coords = self.layer2((x, coords))
+        x, coords = self.layer2((x, x.detach()))    #     coords.shape = 4 *256 *512  x.shape = 4 * 512 *512
         # print('Size after layer2: {}'.format(x.size()))
-        x, coords = self.layer3((x, coords))
+        x, coords = self.layer3((x, x.detach()))    #            x.shape [4, 1024, 256]       coords.shape [4, 512, 256]
         # print('Size after layer3: {}'.format(x.size()))
-        x, coords = self.layer4((x, coords))
+        x, coords = self.layer4((x, x.detach()))    #            x.shape  [4, 2048, 128]   coords.shape [4, 1024, 128]
         # print('Size after layer4: {}'.format(x.size()))
 
         return x, low_level_feats, coords
@@ -266,8 +266,8 @@ if __name__ == '__main__':
 
     device = torch.device('cpu')
 
-    feats = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
-    coords = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
+    feats = torch.rand((4, 3, 4096), dtype=torch.float).to(device)  # batch * channels *num_points
+    coords = torch.rand((4, 3, 4096), dtype=torch.float).to(device) # batch * channels *num_points
     k = 21
 
     net = resnet101(kernel_size=k, input_size=3, num_classes=40).to(device)

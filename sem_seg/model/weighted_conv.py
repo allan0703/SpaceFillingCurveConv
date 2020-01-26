@@ -25,9 +25,9 @@ class WeightedConv(nn.Module):
         dist_weights = F.unfold(coords, kernel_size=self.kernel_size, padding=self.padding,
                                 dilation=self.dilation, stride=self.stride)
 
-        dist_weights = dist_weights.view(x.shape[0], 3, self.kernel_size[0], -1)
+        dist_weights = dist_weights.view(x.shape[0], coords.shape[1], self.kernel_size[0], -1)  #3 --> coords.shape[1]
         dist_weights = dist_weights - dist_weights[:, :, self.kernel_size[0] // 2, :].unsqueeze(-2)
-        dist_weights = 1 - torch.sqrt(torch.sum(dist_weights ** 2, dim=1)) / sigma
+        dist_weights = 1 - torch.sqrt(torch.sum(dist_weights ** 2, dim=1)) / sigma   #
         dist_weights[dist_weights < 0] = 0.0
         dist_weights = dist_weights.repeat(1, self.in_channels, 1)
 
@@ -77,7 +77,7 @@ class SeparableWeightedConv1D(nn.Module):
 
 if __name__ == '__main__':
     batch_size = 2
-    groups = 4
+    groups = 4  # what's the meaning?
     in_channels = 4
     out_channels = 16
     num_points = 4096
@@ -87,7 +87,7 @@ if __name__ == '__main__':
     stride = 1
 
     feats = torch.rand((batch_size, in_channels, num_points), dtype=torch.float)
-    coords = torch.rand((batch_size, 3, num_points), dtype=torch.float)
+    coords = torch.rand((batch_size, 64, num_points), dtype=torch.float)
 
     conv = WeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
                           dilation=dilation, padding=padding, stride=stride)
@@ -99,7 +99,7 @@ if __name__ == '__main__':
 
     start_time = time.time()
     out = conv(feats, coords)
-
+    print(out)
     out.mean().backward()
     print('Time elapsed: {:f}s'.format(time.time() - start_time))
     print(out.shape)

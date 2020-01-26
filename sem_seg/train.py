@@ -113,7 +113,7 @@ def train(dataset, model_dir, writer):
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
-                    out = model(data, coords)
+                    out = model(data, coords)  # only use coords, need to change along every block.
                     loss = criterion(out, label)
                     if phase == 'train':
                         optimizer.zero_grad()
