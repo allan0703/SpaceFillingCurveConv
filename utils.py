@@ -26,10 +26,12 @@ def generate_experiment_dir(model_dir, config, prefix_str=''):
     :param config: Dictionary with config
     """
     timestamp = time.strftime('%Y-%m-%d-%H-%M-%S')
-    experiment_string = '{}_{}_{}_k{}_C{}_lr{}_Seed{}_B{}_{}_{}' \
+    experiment_string = '{}_{}_{}_k{}_C{}_lr{}_Seed{}_B{}_{}_Sigma{}_{}_knn{}_{}_Epoch{}' \
         .format(timestamp, prefix_str+str(config['hilbert_level']),
                 config['backbone'], config['kernel_size'], config['channels'],
                 config['lr'], config['random_seed'], config['batch_size'],
+                'weightedConv' if config['use_weighted_conv'] else 'normalConv', config['sigma'],
+                'knn' if config['use_knn'] else 'noknn', str(config['knn']),
                 'augment' if config['augment'] else 'no-augment', config['max_epochs'], uuid.uuid4())
 
     # experiment_dir = os.path.join(os.path.curdir, experiment_string)

@@ -192,7 +192,8 @@ def main(args):
         config = best_state['config']
 
     # create a checkpoint directory
-    model_dir = utl.generate_experiment_dir(args.model_dir, config, prefix_str='PartNet-'+config['category']+'-hilbert-deeplab')
+    model_dir = utl.generate_experiment_dir(args.model_dir, config,
+                                            prefix_str='PartNet-'+config['category']+'-deeplab-hilbert-')
 
     # configure logger
     utl.configure_logger(model_dir, args.loglevel.upper())

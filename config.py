@@ -15,6 +15,9 @@ def generate_config(args):
         #  kernel_size = np.random.choice([1, 3, 5, 9, 15])
         #  knn = np.random.choice([1, 3, 5, 9, 15])
         args.random_seed = np.random.randint(0, 1000, 1)[0]
+        args.kernel_size = np.random.choice([3, 5, 9, 15])
+        args.sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
+        # args.augment = True  # np.random.choice([True, False])
 
     config = {
         'backbone': args.backbone,
