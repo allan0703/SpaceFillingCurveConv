@@ -36,7 +36,7 @@ def generate_config(args):
         'min_epochs': 100,
         'lr_decay': 0.9,
         'lr_patience': 1,
-        'early_stopping': 20,
+        'early_stopping': 40,
         'gpu_index': args.gpu,
         'multi_gpu': args.multi_gpu,
         'root_dir': args.root_dir,
