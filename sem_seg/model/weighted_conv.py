@@ -17,6 +17,7 @@ class WeightedConv(nn.Module):
         self.padding = padding
         self.stride = stride
 
+
         self.weight = nn.Parameter(torch.Tensor(self.out_channels, self.in_channels, self.kernel_size[0]))
 
     def forward(self, x, coords, sigma):
