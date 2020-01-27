@@ -105,7 +105,7 @@ class S3DISDataset(Dataset):
         # order points in hilbert order
         points_voxel = np.floor(points_norm * (2 ** self.p - 1))
         hilbert_dist = np.zeros(points_voxel.shape[0])
-        for i in range(points_voxel.shape[0]):
+        for i in range(points_voxel.shape[0]):   #num_grids
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :].astype(int))
         idx = np.argsort(hilbert_dist)
 

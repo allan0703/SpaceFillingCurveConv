@@ -5,7 +5,6 @@ import time
 
 from model.weighted_conv import WeightedConv1D
 
-
 __all__ = ['resnet18', 'resnet50', 'resnet101']
 
 
@@ -16,11 +15,14 @@ __all__ = ['resnet18', 'resnet50', 'resnet101']
 #                      padding=dilation * padding, groups=groups, bias=False, dilation=dilation)
 
 
-def convKxK(in_planes, out_planes, stride=1, k=9, dilation=1):
+def convKxK(in_planes, out_planes, stride=1, k=9, dilation=1):  #, use_weighted_conv=True
     """Kx1 weighted convolution"""
     padding = k // 2
-
+    # if use_weighted_conv:
     return WeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation, padding=padding, stride=stride)
+    # else:
+    # return nn.Conv1d(in_planes, out_planes, kernel_size=k, stride=stride,
+    #                    padding=dilation * padding, bias=False, dilation=dilation)
 
 
 def conv1x1(in_planes, out_planes, stride=1):
@@ -54,10 +56,9 @@ class BasicBlock(nn.Module):
 
         identity = x
 
-        out = self.conv1(x, coords, self.sigma)   #coords
-        coords = coords[:, :, ::self.stride]      # batch * 3 *N
+        out = self.conv1(x, coords, self.sigma)  # coords
+        coords = coords[:, :, ::self.stride]  # batch * 3 *N
 
-        #
         out = self.bn1(out)
         out = self.relu(out)
 
@@ -220,11 +221,11 @@ class ResNet(nn.Module):
         x, coords = self.layer1((x, coords))
         # print('Size after layer1: {}'.format(x.size()))
         low_level_feats = x
-        x, coords = self.layer2((x, x.detach()))    #     coords.shape = 4 *256 *512  x.shape = 4 * 512 *512
+        x, coords = self.layer2((x, x.detach()))  # coords.shape = 4 *256 *512  x.shape = 4 * 512 *512
         # print('Size after layer2: {}'.format(x.size()))
-        x, coords = self.layer3((x, x.detach()))    #            x.shape [4, 1024, 256]       coords.shape [4, 512, 256]
+        x, coords = self.layer3((x, x.detach()))  # x.shape [4, 1024, 256]       coords.shape [4, 512, 256]
         # print('Size after layer3: {}'.format(x.size()))
-        x, coords = self.layer4((x, x.detach()))    #            x.shape  [4, 2048, 128]   coords.shape [4, 1024, 128]
+        x, coords = self.layer4((x, x.detach()))  # x.shape  [4, 2048, 128]   coords.shape [4, 1024, 128]
         # print('Size after layer4: {}'.format(x.size()))
 
         return x, low_level_feats, coords
@@ -267,7 +268,7 @@ if __name__ == '__main__':
     device = torch.device('cpu')
 
     feats = torch.rand((4, 3, 4096), dtype=torch.float).to(device)  # batch * channels *num_points
-    coords = torch.rand((4, 3, 4096), dtype=torch.float).to(device) # batch * channels *num_points
+    coords = torch.rand((4, 3, 4096), dtype=torch.float).to(device)  # batch * channels *num_points
     k = 21
 
     net = resnet101(kernel_size=k, input_size=3, num_classes=40).to(device)
