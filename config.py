@@ -32,8 +32,8 @@ def generate_config(args):
         'num_classes': 0,  # will change according to the dataset.
         'category': args.category,
         'level': args.level,
-        'max_epochs': 300,
-        'min_epochs': 100,
+        'max_epochs': 200,
+        'min_epochs': 200,
         'lr_decay': 0.9,
         'lr_patience': 1,
         'early_stopping': 40,
