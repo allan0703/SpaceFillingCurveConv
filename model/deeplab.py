@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from xception import AlignedXception
-import architecture_knn as architecture
-from aspp import aspp
-from decoder import decoder
+from .xception import AlignedXception
+from .architecture_knn import resnet18, resnet50, resnet101
+from .aspp import aspp
+from .decoder import decoder
 
 __all__ = ['deeplab']
 
@@ -17,25 +17,25 @@ class DeepLab(nn.Module):
         super(DeepLab, self).__init__()
 
         if backbone == 'resnet18':
-            self.backbone = architecture.resnet18(in_channels=in_channels, kernel_size=kernel_size,
-                                                  use_weighted_conv=use_weighted_conv, sigma=sigma,
-                                                  use_knn=use_knn, knn=knn
-                                                  )
+            self.backbone = resnet18(in_channels=in_channels, kernel_size=kernel_size,
+                                     use_weighted_conv=use_weighted_conv, sigma=sigma,
+                                     use_knn=use_knn, knn=knn
+                                     )
             sigma *= 32
             self.aspp = aspp(in_channels=512, out_channels=256, output_stride=output_stride,
                              kernel_size=kernel_size, sigma=sigma)
 
         elif backbone == 'resnet50':
-            self.backbone = architecture.resnet50(in_channels=in_channels, kernel_size=kernel_size,
-                                                  use_weighted_conv=use_weighted_conv, sigma=sigma,
-                                                  use_knn=use_knn, knn=knn)
+            self.backbone = resnet50(in_channels=in_channels, kernel_size=kernel_size,
+                                     use_weighted_conv=use_weighted_conv, sigma=sigma,
+                                     use_knn=use_knn, knn=knn)
             sigma *= 32
             self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride,
                              kernel_size=kernel_size, sigma=sigma)
         elif backbone == 'resnet101':
-            self.backbone = architecture.resnet101(in_channels=in_channels, kernel_size=kernel_size,
-                                                   use_weighted_conv=use_weighted_conv, sigma=sigma,
-                                                   use_knn=use_knn, knn=knn)
+            self.backbone = resnet101(in_channels=in_channels, kernel_size=kernel_size,
+                                      use_weighted_conv=use_weighted_conv, sigma=sigma,
+                                      use_knn=use_knn, knn=knn)
             self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride,
                              kernel_size=kernel_size, sigma=sigma)
         else:

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import logging
 import time
 
-from weighted_conv import WeightedConv1D
+from .weighted_conv import WeightedConv1D
 
 __all__ = ['aspp']
 
