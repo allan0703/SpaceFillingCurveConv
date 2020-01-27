@@ -1,10 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import logging
-import time
 
-from .weighted_conv import WeightedConv1D
+from weighted_conv import WeightedConv1D
 
 __all__ = ['decoder']
 
@@ -30,6 +28,8 @@ class Decoder(nn.Module):
     def __init__(self, num_classes, backbone='xception', kernel_size=9, sigma=1.0):
         super(Decoder, self).__init__()
         if backbone == 'resnet101':
+            low_level_inplanes = 256
+        elif backbone == 'resnet50':
             low_level_inplanes = 256
         elif backbone == 'resnet18':
             low_level_inplanes = 64
@@ -84,3 +84,5 @@ class Decoder(nn.Module):
 
 def decoder(num_classes, backbone, kernel_size, sigma):
     return Decoder(num_classes, backbone, kernel_size, sigma)
+
+

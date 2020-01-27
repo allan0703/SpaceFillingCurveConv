@@ -3,25 +3,20 @@ import logging
 import os
 import torch
 import torch.nn as nn
-
 from tqdm import tqdm
 import config as cfg
 import load_partnet_preorder as ds
-import architecture_knn as res
-
+from model import DeepLab
 import utils as utl
 import metrics as metrics
 
-
-# https://gist.github.com/ModarTensai/2328b13bdb11c6309ba449195a6b551a
-# np.random.seed(0)
-# random.seed(0)
 
 # https://pytorch.org/docs/stable/notes/randomness.html
 clss = ['Bag', 'Bed', 'Bottle', 'Bowl', 'Chair', 'Clock', 'Dishwasher', 'Display', 'Door', 'Earphone',  # 0-9
         'Faucet', 'Hat', 'Keyboard', 'Knife', 'Lamp', 'Laptop', 'Microwave', 'Mug', 'Refrigerator', 'Scissors',
         # 10-19
         'StorageFurniture', 'Table', 'TrashCan', 'Vase']  # 20-23
+
 
 def train(config, model_dir, writer):
     """
@@ -34,8 +29,6 @@ def train(config, model_dir, writer):
     :param writer: Tensorboard SummaryWritter object
     """
     phases = ['train', 'test']
-    # phases = ['test', 'train']
-    # todo: config, and check the hilbert curve
     datasets, dataloaders, num_classes = ds.get_partnet_dataloaders(root_dir=config['root_dir'],
                                                                     phases=phases,
                                                                     batch_size=config['batch_size'],
@@ -57,10 +50,10 @@ def train(config, model_dir, writer):
     device = torch.device('cuda:{}'.format(config['gpu_index']))
 
     # we load the model defined in the config file
-    # todo: now the code is IO bound. No matter which network we use, it is similar speed.
-    model = res.sfc_resnet_8(in_channels=config['in_channels'], num_classes=config['num_classes'],
-                             kernel_size=config['kernel_size'], knn=config['knn'], channels=config['channels'],
-                             use_tnet=config['use_tnet'], n_points=config['n_points']).to(device)
+    model = DeepLab(backbone=config['backbone'], in_channels=config['in_channels'], num_classes=config['num_classes'],
+                    kernel_size=config['kernel_size'],
+                    use_weighted_conv=config['use_weighted_conv'], sigma=config['sigma'],
+                    use_knn=config['use_knn'], knn=config['knn']).to(device)
     logging.info('the number of params is {: .2f} M'.format(utl.count_model_params(model) / (1e6)))
     # if use multi_gpu then convert the model to DataParallel
     if config['multi_gpu']:
@@ -199,7 +192,7 @@ def main(args):
         config = best_state['config']
 
     # create a checkpoint directory
-    model_dir = utl.generate_experiment_dir(args.model_dir, config, prefix_str='PartNet-'+config['category']+'-hilbert')
+    model_dir = utl.generate_experiment_dir(args.model_dir, config, prefix_str='PartNet-'+config['category']+'-hilbert-deeplab')
 
     # configure logger
     utl.configure_logger(model_dir, args.loglevel.upper())
@@ -226,7 +219,6 @@ if __name__ == '__main__':
     parser.add_argument('--in_channels', default=3, type=int, help='input channel size')
     parser.add_argument('--batch_size', default=8, type=int, help='batch size')
     parser.add_argument('--kernel_size', default=5, type=int)
-    parser.add_argument('--knn', default=5, type=int)
     parser.add_argument('--channels', default=64, type=int)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
     parser.add_argument('--bias', action='store_true', help='use bias in convolutions')
@@ -236,13 +228,19 @@ if __name__ == '__main__':
     parser.add_argument('--category', default=1, type=int, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
     parser.add_argument('--level', default=3, type=int, help='Area used for test set (1, 2, 3, 4, 5, or 6)')
     parser.add_argument('--hilbert_level', default=7, type=int, help='hilbert curve level')
-    parser.add_argument('--architecture', default='res8-knn', type=str, help='architecture')
     parser.add_argument('--hyperpara_search', action='store_true', help='random choose a hyper parameter')
-    parser.add_argument('--use_tnet', default=False, type=bool, help='random choose a hyper parameter')
+    parser.add_argument('--use_tnet', action='store_true', help='use transformer network')
     parser.add_argument('--n_points', default=10000, type=int)
+    parser.add_argument('--use_knn', action='store_true', help='use knn')
+    parser.add_argument('--knn', default=5, type=int)
+    parser.add_argument('--use_weighted_conv', action='store_true', help='use_weighted_conv')
+    parser.add_argument('--sigma', default=1.5, type=float, help='sigma for distance correlation')
+    parser.add_argument('--backbone', default='resnet50', type=str, help='sigma for distance correlation')
+
     args = parser.parse_args()
     args.category = clss[args.category]
     main(args)
 
     # todo: visualize
+
 

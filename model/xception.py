@@ -254,7 +254,6 @@ class AlignedXception(nn.Module):
 
 
 if __name__ == "__main__":
-    import torch
     model = AlignedXception(norm_layer=nn.BatchNorm1d, output_stride=16, input_size=9)
     x = torch.rand(1, 9, 4096)
     output, low_level_feat = model(x)

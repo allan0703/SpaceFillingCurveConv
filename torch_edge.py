@@ -105,7 +105,6 @@ class DilatedKnnGraph(nn.Module):
 
 def batched_index_select(inputs, index):
     """
-
     :param inputs: torch.Size([batch_size, num_dims, num_vertices, 1])
     :param index: torch.Size([batch_size, num_vertices, k])
     :return: torch.Size([batch_size, num_dims, num_vertices, k])
@@ -117,7 +116,7 @@ def batched_index_select(inputs, index):
     idx = idx.view(batch_size, -1)
 
     inputs = inputs.transpose(2, 1).contiguous().view(-1, num_dims)
-    index = index.view(batch_size, -1) + idx.type(index.dtype).to(inputs.device)
+    index = index.reshape(batch_size, -1) + idx.type(index.dtype).to(inputs.device)
     index = index.view(-1)
 
     return torch.index_select(inputs, 0, index).view(batch_size, -1, num_dims).transpose(2, 1).view(batch_size, num_dims, -1, k)

@@ -1,6 +1,7 @@
 import numpy as np
 import utils as utl
 
+
 def generate_config(args):
     """
     Function to create a configuration file used in training
@@ -10,27 +11,22 @@ def generate_config(args):
     :return: configuration dictionary used for training
     """
 
-    kernel_size = args.kernel_size
-    knn = args.knn
-    lr = args.lr
-    random_seed = args.random_seed
-
     if args.hyperpara_search:
         #  kernel_size = np.random.choice([1, 3, 5, 9, 15])
-        # lr = np.random.choice([1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
-        random_seed = np.random.randint(0, 1000, 1)[0]
+        #  knn = np.random.choice([1, 3, 5, 9, 15])
+        args.random_seed = np.random.randint(0, 1000, 1)[0]
 
     config = {
-        'lr': lr,
+        'backbone': args.backbone,
+        'lr': args.lr,
         'batch_size': args.batch_size,
-        'kernel_size': int(kernel_size),
-        'knn': int(knn),
+        'kernel_size': args.kernel_size,
         'in_channels': args.in_channels,
         'channels': args.channels,
         'augment': args.augment,
         'n_points': args.n_points,
         'bias': args.bias,
-        'num_classes': 0,
+        'num_classes': 0,  # will change according to the dataset.
         'category': args.category,
         'level': args.level,
         'max_epochs': 300,
@@ -43,15 +39,19 @@ def generate_config(args):
         'root_dir': args.root_dir,
         'model_dir': args.model_dir,
         'hilbert_level': args.hilbert_level,
-        'architecture': args.architecture,
         'use_tnet': args.use_tnet,
-        'random_seed': random_seed,
+        'use_weighted_conv': args.use_weighted_conv,
+        'sigma': args.sigma,
+        'use_knn': args.use_knn,
+        'knn': args.knn,
+        'random_seed': args.random_seed,
         'do_not_dump_in_tensorboard': ['do_not_dump_in_tensorboard', 'model', 'order',
                                        'category', 'dataset', 'data_loading_function',
                                        'backbone', 'root_dir', 'model_dir', 'architecture'],
     }
 
-    utl.set_seed(random_seed)
-
+    utl.set_seed(args.random_seed)
     return config
+
+
 

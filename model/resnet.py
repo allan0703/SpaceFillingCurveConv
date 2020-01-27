@@ -3,17 +3,10 @@ import torch.nn as nn
 import logging
 import time
 
-from .weighted_conv import WeightedConv1D
+from model.weighted_conv import WeightedConv1D
 
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']
-
-
-# def convKxK(in_planes, out_planes, stride=1, k=9, groups=1, dilation=1):
-#     """3x3 convolution with padding"""
-#     padding = k // 2
-#     return nn.Conv1d(in_planes, out_planes, kernel_size=k, stride=stride,
-#                      padding=dilation * padding, groups=groups, bias=False, dilation=dilation)
 
 
 def convKxK(in_planes, out_planes, stride=1, k=9, dilation=1):
@@ -57,7 +50,6 @@ class BasicBlock(nn.Module):
         out = self.conv1(x, coords, self.sigma)
         coords = coords[:, :, ::self.stride]
 
-        #
         out = self.bn1(out)
         out = self.relu(out)
 

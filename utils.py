@@ -28,7 +28,7 @@ def generate_experiment_dir(model_dir, config, prefix_str=''):
     timestamp = time.strftime('%Y-%m-%d-%H-%M-%S')
     experiment_string = '{}_{}_{}_k{}_C{}_lr{}_Seed{}_B{}_{}_{}' \
         .format(timestamp, prefix_str+str(config['hilbert_level']),
-                config['architecture'], config['kernel_size'], config['channels'],
+                config['backbone'], config['kernel_size'], config['channels'],
                 config['lr'], config['random_seed'], config['batch_size'],
                 'augment' if config['augment'] else 'no-augment', config['max_epochs'], uuid.uuid4())
 

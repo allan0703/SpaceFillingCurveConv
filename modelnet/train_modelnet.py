@@ -9,7 +9,7 @@ import torch.nn as nn
 from tqdm import tqdm
 
 import config as cfg
-from train_modelnet import dataset_modelnet as ds, resnet as res
+from modelnet import dataset_modelnet as ds, resnet as res
 
 import utils as utl
 import metrics as metrics

@@ -18,6 +18,10 @@ class WeightedConv(nn.Module):
         self.stride = stride
 
         self.weight = nn.Parameter(torch.Tensor(self.out_channels, self.in_channels, self.kernel_size[0]))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.kaiming_normal_(self.weight, mode='fan_out', nonlinearity='relu')
 
     def forward(self, x, coords, sigma):
         windows = F.unfold(x, kernel_size=self.kernel_size, padding=self.padding,
