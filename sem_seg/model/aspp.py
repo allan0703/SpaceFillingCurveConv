@@ -12,7 +12,7 @@ __all__ = ['aspp']
 class ASPPConv(nn.Module):
     def __init__(self, in_channels, out_channels, dilation, kernel_size=9, sigma=1.0):
         super(ASPPConv, self).__init__()
-        self.sigma = sigma
+        self.sigma = dilation * sigma
         self.conv = WeightedConv1D(in_channels, out_channels, kernel_size, padding=dilation * (kernel_size // 2),
                                    dilation=dilation)
         self.bn = nn.BatchNorm1d(out_channels)
