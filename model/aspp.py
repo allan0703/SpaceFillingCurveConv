@@ -106,10 +106,6 @@ class ASPP(nn.Module):
         return self.project(res)
 
 
-def aspp(in_channels, out_channels, output_stride, kernel_size=9, sigma=1.0):
-    return ASPP(in_channels, out_channels, output_stride, kernel_size, sigma=sigma)
-
-
 if __name__ == '__main__':
     numeric_level = getattr(logging, 'INFO', None)
     logging.basicConfig(format='%(asctime)s:%(levelname)s: %(message)s',
@@ -124,7 +120,7 @@ if __name__ == '__main__':
     coords = torch.rand((4, 3, 128), dtype=torch.float).to(device)
     k = 21
 
-    net = aspp(in_channels=512, out_channels=256, output_stride=16, kernel_size=k).to(device)
+    net = ASPP(in_channels=512, out_channels=256, output_stride=16, kernel_size=k).to(device)
 
     start_time = time.time()
     out = net(feats, coords)
