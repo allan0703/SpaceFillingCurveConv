@@ -1,7 +1,8 @@
 # Created by .ignore support plugin (hsz.mobi)
 ### folder
 log/
-
+log*
+log-shallow/
 ### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/

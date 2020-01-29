@@ -221,7 +221,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=8, type=int, help='batch size')
     parser.add_argument('--kernel_size', default=5, type=int)
     parser.add_argument('--channels', default=256, type=int)
-    parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
+    parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
     parser.add_argument('--bias', action='store_true', help='use bias in convolutions')
     parser.add_argument('--augment', action='store_true', help='use augmentation in training')
     parser.add_argument('--random_seed', default=1, type=int, help='optional random seed')

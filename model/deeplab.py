@@ -53,11 +53,11 @@ class DeepLab(nn.Module):
         # decoder_coords = input.detach()[:, :, ::4]
         decoder_coords = input.detach()
         x, low_level_feat, coords = self.backbone(input)
-        print('Backbone: Output size {} Feat size {}'.format(x.size(), low_level_feat.size()))
+        # print('Backbone: Output size {} Feat size {}'.format(x.size(), low_level_feat.size()))
         x = self.aspp1(x, coords)
-        print('ASPP: Output size {} - {}'.format(x.size(), coords.size()))
+        # print('ASPP: Output size {} - {}'.format(x.size(), coords.size()))
         x = self.decoder(x, low_level_feat, decoder_coords)
-        print('Decoder: Output size {}'.format(x.size()))
+        # print('Decoder: Output size {}'.format(x.size()))
         return x
 
 
