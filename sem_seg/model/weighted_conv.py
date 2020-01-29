@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 import time
 
-__all__ = ['WeightedConv1D', 'SeparableWeightedConv1D']
+__all__ = ['WeightedConv1D', 'WeightedConvTranspose1D', 'SeparableWeightedConv1D']
 
 
 class WeightedConv(nn.Module):

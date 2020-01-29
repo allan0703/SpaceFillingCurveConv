@@ -3,6 +3,33 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
+from .weighted_conv import WeightedConv1D, WeightedConvTranspose1D
+
+
+class UnetBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
+        super(UnetBlock, self).__init__()
+
+        self.stride = stride
+        self.conv1 = WeightedConv1D(in_channels=in_channels, out_channels=out_channels,
+                                    kernel_size=kernel_size, padding=padding, stride=stride)
+        self.bn1 = nn.BatchNorm1d(out_channels)
+
+        self.conv2 = WeightedConv1D(in_channels=out_channels, out_channels=out_channels,
+                                    kernel_size=kernel_size, padding=padding)
+        self.bn2 = nn.BatchNorm1d(out_channels)
+
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x, coords, sigma):
+        x = self.relu(self.bn1(self.conv1(x, coords, sigma)))
+
+        coords = coords[:, :, ::self.stride]
+
+        x = self.relu(self.bn2(self.conv2(x, coords, sigma)))
+
+        return x, coords
+
 
 class UNet(nn.Module):
 
@@ -10,58 +37,71 @@ class UNet(nn.Module):
         super(UNet, self).__init__()
 
         features = init_features
-        self.encoder1 = UNet._block(in_channels, features, kernel_size, name="enc1")
-        self.pool1 = nn.MaxPool1d(kernel_size=4, stride=2, padding=1)
-        self.encoder2 = UNet._block(features, features * 2, kernel_size, name="enc2")
-        self.pool2 = nn.MaxPool1d(kernel_size=4, stride=2, padding=1)
-        self.encoder3 = UNet._block(features * 2, features * 4, kernel_size, name="enc3")
-        self.pool3 = nn.MaxPool1d(kernel_size=4, stride=2, padding=1)
-        self.encoder4 = UNet._block(features * 4, features * 8, kernel_size, name="enc4")
-        self.pool4 = nn.MaxPool1d(kernel_size=4, stride=2, padding=1)
+        padding = kernel_size // 2
+        self.encoder1 = UnetBlock(in_channels, features, kernel_size, stride=1, padding=padding)
+        self.encoder2 = UnetBlock(features, features * 2, kernel_size, stride=2, padding=padding)
+        self.encoder3 = UnetBlock(features * 2, features * 4, kernel_size, stride=2, padding=padding)
+        self.encoder4 = UnetBlock(features * 4, features * 8, kernel_size, stride=2, padding=padding)
 
-        self.bottleneck = UNet._block(features * 8, features * 16, kernel_size, name="bottleneck")
+        self.bottleneck = UnetBlock(features * 8, features * 16, kernel_size, stride=2, padding=padding)
 
-        self.upconv4 = nn.ConvTranspose1d(
-            features * 16, features * 8, kernel_size=4, stride=2, padding=1
-        )
-        self.decoder4 = UNet._block((features * 8) * 2, features * 8, kernel_size, name="dec4")
-        self.upconv3 = nn.ConvTranspose1d(
-            features * 8, features * 4, kernel_size=4, stride=2, padding=1
-        )
-        self.decoder3 = UNet._block((features * 4) * 2, features * 4, kernel_size, name="dec3")
-        self.upconv2 = nn.ConvTranspose1d(
-            features * 4, features * 2, kernel_size=4, stride=2, padding=1
-        )
-        self.decoder2 = UNet._block((features * 2) * 2, features * 2, kernel_size, name="dec2")
-        self.upconv1 = nn.ConvTranspose1d(
-            features * 2, features, kernel_size=4, stride=2, padding=1
-        )
-        self.decoder1 = UNet._block(features * 2, features, kernel_size, name="dec1")
+        self.upconv4 = WeightedConvTranspose1D(features * 16, features * 8, kernel_size, stride=2, padding=padding)
+        self.decoder4 = UnetBlock((features * 8) * 2, features * 8, kernel_size, stride=1, padding=padding)
+
+        self.upconv3 = WeightedConvTranspose1D(features * 8, features * 4, kernel_size, stride=2, padding=padding)
+        self.decoder3 = UnetBlock((features * 4) * 2, features * 4, kernel_size, stride=1, padding=padding)
+
+        self.upconv2 = WeightedConvTranspose1D(features * 4, features * 2, kernel_size, stride=2, padding=padding)
+        self.decoder2 = UnetBlock((features * 2) * 2, features * 2, kernel_size, stride=1, padding=padding)
+
+        self.upconv1 = WeightedConvTranspose1D(features * 2, features, kernel_size, stride=2, padding=padding)
+        self.decoder1 = UnetBlock(features * 2, features, kernel_size, stride=1, padding=padding)
+
+        # self.upconv4 = nn.ConvTranspose1d(
+        #     features * 16, features * 8, kernel_size=4, stride=2, padding=1
+        # )
+        # self.decoder4 = UNet._block((features * 8) * 2, features * 8, kernel_size, name="dec4")
+        # self.upconv3 = nn.ConvTranspose1d(
+        #     features * 8, features * 4, kernel_size=4, stride=2, padding=1
+        # )
+        # self.decoder3 = UNet._block((features * 4) * 2, features * 4, kernel_size, name="dec3")
+        # self.upconv2 = nn.ConvTranspose1d(
+        #     features * 4, features * 2, kernel_size=4, stride=2, padding=1
+        # )
+        # self.decoder2 = UNet._block((features * 2) * 2, features * 2, kernel_size, name="dec2")
+        # self.upconv1 = nn.ConvTranspose1d(
+        #     features * 2, features, kernel_size=4, stride=2, padding=1
+        # )
+        # self.decoder1 = UNet._block(features * 2, features, kernel_size, name="dec1")
 
         self.conv = nn.Conv1d(
             in_channels=features, out_channels=out_channels, kernel_size=1
         )
 
-    def forward(self, x, coords):
-        enc1 = self.encoder1(x)
-        enc2 = self.encoder2(self.pool1(enc1))
-        enc3 = self.encoder3(self.pool2(enc2))
-        enc4 = self.encoder4(self.pool3(enc3))
+    def forward(self, x, coords, sigma):
+        enc1, coords1 = self.encoder1(x, coords, sigma)
+        enc2, coords2 = self.encoder2(enc1, coords1, 2 * sigma)
+        enc3, coords3 = self.encoder3(enc2, coords2, 4 * sigma)
+        enc4, coords4 = self.encoder4(enc3, coords3, 8 * sigma)
 
-        bottleneck = self.bottleneck(self.pool4(enc4))
+        bottleneck, coordsb = self.bottleneck(enc4, coords4, 16 * sigma)
 
-        dec4 = self.upconv4(bottleneck)
+        dec4 = self.upconv4(bottleneck, coordsb, 16 * sigma)
         dec4 = torch.cat((dec4, enc4), dim=1)
-        dec4 = self.decoder4(dec4)
-        dec3 = self.upconv3(dec4)
+        dec4, _ = self.decoder4(dec4, coords4, 8 * sigma)
+
+        dec3 = self.upconv3(dec4, coords4, 8 * sigma)
         dec3 = torch.cat((dec3, enc3), dim=1)
-        dec3 = self.decoder3(dec3)
-        dec2 = self.upconv2(dec3)
+        dec3, _ = self.decoder3(dec3, coords3, 4 * sigma)
+
+        dec2 = self.upconv2(dec3, coords3, 4 * sigma)
         dec2 = torch.cat((dec2, enc2), dim=1)
-        dec2 = self.decoder2(dec2)
-        dec1 = self.upconv1(dec2)
+        dec2, _ = self.decoder2(dec2, coords2, 2 * sigma)
+
+        dec1 = self.upconv1(dec2, coords2, 2 * sigma)
         dec1 = torch.cat((dec1, enc1), dim=1)
-        dec1 = self.decoder1(dec1)
+        dec1, _ = self.decoder1(dec1, coords, sigma)
+
         return torch.sigmoid(self.conv(dec1))
 
     @staticmethod
@@ -106,8 +146,9 @@ def unet(input_size=3, num_classes=21, kernel_size=27):
 if __name__ == '__main__':
     x = torch.rand((4, 4, 4096), dtype=torch.float)
     coords = torch.rand((4, 3, 4096), dtype=torch.float)
+    sigma = 3.0
     print('Input size {}'.format(x.size()))
     net = UNet(in_channels=4, out_channels=13, init_features=32)
-    out = net(x)
+    out = net(x, coords, sigma)
 
     print('Output size {}'.format(out.size()))
