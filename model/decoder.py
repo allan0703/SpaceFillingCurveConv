@@ -99,7 +99,7 @@ class C2FDecoder(nn.Module):
     """
     def __init__(self, in_channels, out_channels=256, kernel_size=9, sigma=1.0, drop=0.1, embed_channels=256):
         super(C2FDecoder, self).__init__()
-        self.conv1 = BasicConv1d(embed_channels, out_channels, 1)
+        self.conv1 = BasicConv1d(in_channels, embed_channels, 1)
 
         self.deconv1 = DeConvBlock(in_channels, embed_channels, kernel_size, sigma, drop, embed_channels)
         self.deconv2 = DeConvBlock(embed_channels, embed_channels, kernel_size, sigma/2, drop, embed_channels)
@@ -126,6 +126,7 @@ class C2FDecoder(nn.Module):
         x = self.deconv3(x, coords[:, :, ::4])
         x = self.deconv4(x, coords[:, :, ::2])
         x = self.conv_out(x)
+
         return x
 
 
