@@ -248,6 +248,13 @@ class S3DIS:
         if args.bias is not None:
             config.bias = args.bias
 
+        if args.hyperpara_search:
+            config.kernel_size = np.random.choice([3, 5, 9])
+            config.num_feats = np.random.choice([4, 5, 9])  # 4  # np.random.choice([4, 9])
+            config.lr = np.random.choice([1e-3, 1e-4])
+            #config.batch_size = int(np.random.choice([8, 16, 32]))
+            config.sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
+
         config.gpu_index = args.gpu
         config.multi_gpu = args.multi_gpu
         config.root_dir = args.root_dir
