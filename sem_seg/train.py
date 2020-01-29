@@ -110,7 +110,7 @@ def train(dataset, model_dir, writer):
                 data = inputs[0].to(device, dtype=torch.float).permute(0, 2, 1, 3)
                 coords = inputs[1].to(device, dtype=torch.float).permute(0, 2, 1, 3)
                 label = inputs[2].to(device, dtype=torch.long)
-                reindices = inputs[3].to(device, dtype=torch.int16)
+                reindices = inputs[3].to(device, dtype=torch.long)
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):

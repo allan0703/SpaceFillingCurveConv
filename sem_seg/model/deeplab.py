@@ -14,7 +14,7 @@ class DeepLab(nn.Module):
     def __init__(self, backbone='xception', input_size=3, output_stride=16,
                  num_classes=21, kernel_size=9, sigma=1.0, T=4):
         super(DeepLab, self).__init__()
-
+        self.num_classes = num_classes
         if backbone == 'resnet18':
             self.backbone = resnet18(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
             sigma *= 32
@@ -51,7 +51,7 @@ class DeepLab(nn.Module):
             x = F.interpolate(x, size=input.size(-1), mode='linear', align_corners=True)
 
             # reorder x
-            x = torch.index_select(x, dim=-1, index=reindices[:, i])  # reindices[:,i]
+            x = torch.gather(x, dim=-1, index=reindices[:, :, i].unsqueeze(1).repeat(1, self.num_classes, 1))  # reindices[:,i]
             out.append(x)
         out = torch.cat(out, dim=1)  # out : B X CT X N
         out = self.fusion_multi_conv(out)
