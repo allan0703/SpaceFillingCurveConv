@@ -103,9 +103,9 @@ class C2FDecoder(nn.Module):
 
         self.deconv1 = DeConvBlock(in_channels, embed_channels, kernel_size, sigma, drop, embed_channels)
         self.deconv2 = DeConvBlock(embed_channels, embed_channels, kernel_size, sigma/2, drop, embed_channels)
-        self.deconv3 = DeConvBlock(embed_channels, embed_channels, kernel_size, sigma/4, drop, embed_channels)
-        self.deconv4 = DeConvBlock(embed_channels+out_channels, embed_channels, kernel_size, sigma/4, drop, embed_channels)
-        self.deconv5 = DeConvBlock(embed_channels, embed_channels, kernel_size, sigma/16, drop, embed_channels)
+        # self.deconv3 = DeConvBlock(embed_channels, embed_channels, kernel_size, sigma/4, drop, embed_channels)
+        self.deconv3 = DeConvBlock(embed_channels+out_channels, embed_channels, kernel_size, sigma/4, drop, embed_channels)
+        self.deconv4 = DeConvBlock(embed_channels, embed_channels, kernel_size, sigma/16, drop, embed_channels)
         self.conv_out = nn.Conv1d(embed_channels, out_channels, kernel_size=1, stride=1)
         self.reset_parameters()
 
@@ -121,12 +121,11 @@ class C2FDecoder(nn.Module):
 
     def forward(self, x, low_level_feat, coords):
         low_level_feat = self.conv1(low_level_feat)
-        x = self.deconv1(x, coords[:, :, ::32])
-        x = self.deconv2(x, coords[:, :, ::16])
-        x = self.deconv3(x, coords[:, :, ::8])
+        x = self.deconv1(x, coords[:, :, ::16])
+        x = self.deconv2(x, coords[:, :, ::8])
         x = torch.cat((x, low_level_feat), dim=1)
-        x = self.deconv4(x, coords[:, :, ::4])
-        x = self.deconv5(x, coords[:, :, ::2])
+        x = self.deconv3(x, coords[:, :, ::4])
+        x = self.deconv4(x, coords[:, :, ::2])
         x = self.conv_out(x)
 
         return x

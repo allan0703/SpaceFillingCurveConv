@@ -51,7 +51,7 @@ def train(config, model_dir, writer):
 
     # we load the model defined in the config file
     model = DeepLab(backbone=config['backbone'], in_channels=config['in_channels'], num_classes=config['num_classes'],
-                    kernel_size=config['kernel_size'],
+                    kernel_size=config['kernel_size'], channels=config['channels'],
                     use_weighted_conv=config['use_weighted_conv'], sigma=config['sigma'],
                     use_knn=config['use_knn'], knn=config['knn']).to(device)
     logging.info('the number of params is {: .2f} M'.format(utl.count_model_params(model) / (1e6)))
@@ -220,7 +220,7 @@ if __name__ == '__main__':
     parser.add_argument('--in_channels', default=3, type=int, help='input channel size')
     parser.add_argument('--batch_size', default=8, type=int, help='batch size')
     parser.add_argument('--kernel_size', default=5, type=int)
-    parser.add_argument('--channels', default=64, type=int)
+    parser.add_argument('--channels', default=256, type=int)
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
     parser.add_argument('--bias', action='store_true', help='use bias in convolutions')
     parser.add_argument('--augment', action='store_true', help='use augmentation in training')

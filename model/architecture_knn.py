@@ -253,12 +253,10 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 256, layers[2], kernel_size, stride=2, knn=knn, sigma=self.sigma,
                                        dilate=replace_stride_with_dilation[1], knn_graph=self.knn_graph)
         self.sigma *= 2
-        self.layer4 = self._make_layer(block, 512, layers[3], kernel_size, stride=2, knn=knn, sigma=self.sigma,
+        self.layer4 = self._make_layer(block, 512, layers[3], kernel_size, stride=1, knn=knn, sigma=self.sigma,
                                        dilate=replace_stride_with_dilation[2], knn_graph=self.knn_graph)
         # expand fc layers.
         self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
-
         self.pred = Seq(
             BasicConv1d(512 * block.expansion + 2, 512),
             BasicConv1d(512, 256, dropout=True),

@@ -22,22 +22,22 @@ class DeepLab(nn.Module):
                                      use_weighted_conv=use_weighted_conv, sigma=sigma,
                                      use_knn=use_knn, knn=knn
                                      )
-            sigma *= 32
+            sigma *= 16  # todo: make sigma bigger or smaller?
             self.aspp1 = ASPP(in_channels=512, out_channels=channels, output_stride=output_stride,
-                             kernel_size=kernel_size, sigma=sigma)
+                              kernel_size=kernel_size, sigma=sigma)
 
         elif backbone == 'resnet50':
             self.backbone = resnet50(in_channels=in_channels, kernel_size=kernel_size,
                                      use_weighted_conv=use_weighted_conv, sigma=sigma,
                                      use_knn=use_knn, knn=knn)
-            sigma *= 32
+            sigma *= 16
             self.aspp1 = ASPP(in_channels=2048, out_channels=channels, output_stride=output_stride,
-                             kernel_size=kernel_size, sigma=sigma)
+                              kernel_size=kernel_size, sigma=sigma)
         elif backbone == 'resnet101':
             self.backbone = resnet101(in_channels=in_channels, kernel_size=kernel_size,
                                       use_weighted_conv=use_weighted_conv, sigma=sigma,
                                       use_knn=use_knn, knn=knn)
-            sigma *= 32
+            sigma *= 16
             self.aspp1 = ASPP(in_channels=2048, out_channels=channels, output_stride=output_stride,
                               kernel_size=kernel_size, sigma=sigma)
         else:
