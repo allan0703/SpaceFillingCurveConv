@@ -233,6 +233,8 @@ if __name__ == '__main__':
                         help='batch size for training')
     parser.add_argument('--lr', default=None, type=float,
                         help='learning rate')
+    parser.add_argument('--sigma', default=None, type=float,
+                        help='sigma value for weighted convolutions')
     parser.add_argument('--dilation', default=1, type=int,
                         help='dilation to use')
     parser.add_argument('--augment', default=False, action='store_true',

@@ -33,8 +33,10 @@ class UnetBlock(nn.Module):
 
 class UNet(nn.Module):
 
-    def __init__(self, in_channels=3, out_channels=1, init_features=32, kernel_size=9):
+    def __init__(self, in_channels=3, out_channels=1, init_features=32, kernel_size=9, sigma=1.0):
         super(UNet, self).__init__()
+
+        self.sigma = sigma
 
         features = init_features
         padding = kernel_size // 2
@@ -78,29 +80,29 @@ class UNet(nn.Module):
             in_channels=features, out_channels=out_channels, kernel_size=1
         )
 
-    def forward(self, x, coords, sigma):
-        enc1, coords1 = self.encoder1(x, coords, sigma)
-        enc2, coords2 = self.encoder2(enc1, coords1, 2 * sigma)
-        enc3, coords3 = self.encoder3(enc2, coords2, 4 * sigma)
-        enc4, coords4 = self.encoder4(enc3, coords3, 8 * sigma)
+    def forward(self, x, coords):
+        enc1, coords1 = self.encoder1(x, coords, self.sigma)
+        enc2, coords2 = self.encoder2(enc1, coords1, 2 * self.sigma)
+        enc3, coords3 = self.encoder3(enc2, coords2, 4 * self.sigma)
+        enc4, coords4 = self.encoder4(enc3, coords3, 8 * self.sigma)
 
-        bottleneck, coordsb = self.bottleneck(enc4, coords4, 16 * sigma)
+        bottleneck, coordsb = self.bottleneck(enc4, coords4, 16 * self.sigma)
 
-        dec4 = self.upconv4(bottleneck, coordsb, 16 * sigma)
+        dec4 = self.upconv4(bottleneck, coordsb, 16 * self.sigma)
         dec4 = torch.cat((dec4, enc4), dim=1)
-        dec4, _ = self.decoder4(dec4, coords4, 8 * sigma)
+        dec4, _ = self.decoder4(dec4, coords4, 8 * self.sigma)
 
-        dec3 = self.upconv3(dec4, coords4, 8 * sigma)
+        dec3 = self.upconv3(dec4, coords4, 8 * self.sigma)
         dec3 = torch.cat((dec3, enc3), dim=1)
-        dec3, _ = self.decoder3(dec3, coords3, 4 * sigma)
+        dec3, _ = self.decoder3(dec3, coords3, 4 * self.sigma)
 
-        dec2 = self.upconv2(dec3, coords3, 4 * sigma)
+        dec2 = self.upconv2(dec3, coords3, 4 * self.sigma)
         dec2 = torch.cat((dec2, enc2), dim=1)
-        dec2, _ = self.decoder2(dec2, coords2, 2 * sigma)
+        dec2, _ = self.decoder2(dec2, coords2, 2 * self.sigma)
 
-        dec1 = self.upconv1(dec2, coords2, 2 * sigma)
+        dec1 = self.upconv1(dec2, coords2, 2 * self.sigma)
         dec1 = torch.cat((dec1, enc1), dim=1)
-        dec1, _ = self.decoder1(dec1, coords, sigma)
+        dec1, _ = self.decoder1(dec1, coords, self.sigma)
 
         return torch.sigmoid(self.conv(dec1))
 
@@ -148,7 +150,7 @@ if __name__ == '__main__':
     coords = torch.rand((4, 3, 4096), dtype=torch.float)
     sigma = 3.0
     print('Input size {}'.format(x.size()))
-    net = UNet(in_channels=4, out_channels=13, init_features=32)
-    out = net(x, coords, sigma)
+    net = UNet(in_channels=4, out_channels=13, init_features=32, sigma=sigma)
+    out = net(x, coords)
 
     print('Output size {}'.format(out.size()))
