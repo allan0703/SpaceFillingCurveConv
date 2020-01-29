@@ -50,7 +50,7 @@ def train(dataset, model_dir, writer):
     else:
         model = deeplab(backbone=dataset.config.backbone, input_size=dataset.config.num_feats,
                         num_classes=dataset.config.num_classes, kernel_size=dataset.config.kernel_size,
-                        sigma=1.5).to(device)
+                        sigma=dataset.config.sigma).to(device)
 
     # if use multi_gou then convert the model to DataParallel
     if dataset.config.multi_gpu:

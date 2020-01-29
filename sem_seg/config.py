@@ -6,7 +6,7 @@ class S3DISConfig:
     # Configuration of dataset and model:
     dataset = 'S3DIS'
     model = 'deeplab'  # np.random.choice(['unet', 'deeplab'])
-    backbone = 'resnet101'  # np.random.choice(['xception', 'resnet18', 'resnet101'])
+    backbone = 'resnet18'  # np.random.choice(['resnet18', 'resnet101'])  # np.random.choice(['xception', 'resnet18', 'resnet101'])
     num_classes = 13
 
     # Hyperparameters for training:
@@ -14,10 +14,11 @@ class S3DISConfig:
     kernel_size = np.random.choice([3, 5, 9, 15])
     num_feats = 4  # np.random.choice([4, 9])  # np.random.choice([4, 5, 9])
     lr = np.random.choice([1e-3, 1e-4])
-    batch_size = int(np.random.choice([8, 16, 32]))
+    batch_size = int(np.random.choice([8, 16]))
     sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
     augment = True  # np.random.choice([True, False])
     bias = False  # np.random.choice([True, False])
+    p = 7  # hilbert order
 
     # Training setup:
     max_epochs = 300
@@ -65,6 +66,7 @@ class S3DISConfig:
             f.write('sigma = {:f}\n'.format(self.sigma))
             f.write('augment = {}\n'.format(self.augment))
             f.write('bias = {}\n\n'.format(self.bias))
+            f.write('p = {:d}\n\n'.format(self.p))
 
             # training setup
             f.write('# Training setup\n')
@@ -87,6 +89,35 @@ class S3DISConfig:
             f.write('root_dir = {:s}\n'.format(self.root_dir))
             f.write('model_dir = {:s}\n'.format(self.model_dir))
 
+    def load(self, filename):
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+
+        # Class variable dictionary
+        for line in lines:
+            line_info = line.split()
+            # print(line_info)
+            if len(line_info) > 1 and line_info[0] != '#':
+                # if line_info[0] == 'model':
+                #     self.model = [b for b in line_info[2:]]
+                # elif line_info[0] == 'dataset':
+                #     self.dataset = [b for b in line_info[2:]]
+                # elif line_info[0] == 'backbone':
+                #     self.backbone = [b for b in line_info[2:]]
+                # elif line_info[0] == 'root_dir':
+                #     self.root_dir = [b for b in line_info[2:]]
+                # elif line_info[0] == 'model_dir':
+                #     self.model_dir = [b for b in line_info[2:]]
+                # else:
+                attr_type = type(getattr(self, line_info[0]))
+                if attr_type == bool:
+                    val = True
+                    if line_info[2] == 'False':
+                        val = False
+                    setattr(self, line_info[0], val)
+                else:
+                    setattr(self, line_info[0], attr_type(line_info[2]))
+
     def dump_to_tensorboard(self, writer):
         writer.add_scalar('config/test_area', self.test_area, 0)
         writer.add_scalar('config/kernel_size', self.kernel_size, 0)
@@ -96,6 +127,7 @@ class S3DISConfig:
         writer.add_scalar('config/sigma', self.sigma, 0)
         writer.add_scalar('config/augment', self.augment, 0)
         writer.add_scalar('config/bias', self.bias, 0)
+        writer.add_scalar('config/p', self.p, 0)
         writer.add_scalar('config/min_epochs', self.min_epochs, 0)
         writer.add_scalar('config/max_epochs', self.max_epochs, 0)
         writer.add_scalar('config/lr_decay', self.lr_decay, 0)

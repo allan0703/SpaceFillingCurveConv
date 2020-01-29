@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import time
+
+from .weighted_conv import SeparableWeightedConv1D
 
 __all__ = ['AlignedXception']
 
@@ -15,24 +18,45 @@ def fixed_padding(inputs, kernel_size, dilation):
     return padded_inputs
 
 
+# class SeparableConv2d(nn.Module):
+#     def __init__(self, inplanes, planes, kernel_size=3, stride=1, dilation=1, bias=False, BatchNorm=None):
+#         super(SeparableConv2d, self).__init__()
+#
+#         # to account for long 1D sequence
+#         # dilation = int(dilation ** 2)
+#         # stride = int(stride ** 2)
+#
+#         self.conv1 = nn.Conv1d(inplanes, inplanes, kernel_size, stride, 0, dilation,
+#                                groups=inplanes, bias=bias)
+#         self.bn = BatchNorm(inplanes)
+#         self.pointwise = nn.Conv1d(inplanes, planes, 1, 1, 0, 1, 1, bias=bias)
+#
+#     def forward(self, x):
+#         x = fixed_padding(x, self.conv1.kernel_size[0], dilation=self.conv1.dilation[0])
+#         x = self.conv1(x)
+#         x = self.bn(x)
+#         x = self.pointwise(x)
+#         return x
+
 class SeparableConv2d(nn.Module):
     def __init__(self, inplanes, planes, kernel_size=3, stride=1, dilation=1, bias=False, BatchNorm=None):
         super(SeparableConv2d, self).__init__()
+        self.dilation = dilation
+        self.kernel_size = kernel_size
+        self.conv = SeparableWeightedConv1D(in_channels=inplanes, out_channels=planes, kernel_size=kernel_size,
+                                            dilation=dilation, padding=kernel_size // 2, stride=stride, norm_layer=BatchNorm)
 
-        # to account for long 1D sequence
-        # dilation = int(dilation ** 2)
-        # stride = int(stride ** 2)
+        # self.conv1 = nn.Conv1d(inplanes, inplanes, kernel_size, stride, 0, dilation,
+        #                        groups=inplanes, bias=bias)
+        # self.bn = BatchNorm(inplanes)
+        # self.pointwise = nn.Conv1d(inplanes, planes, 1, 1, 0, 1, 1, bias=bias)
 
-        self.conv1 = nn.Conv1d(inplanes, inplanes, kernel_size, stride, 0, dilation,
-                               groups=inplanes, bias=bias)
-        self.bn = BatchNorm(inplanes)
-        self.pointwise = nn.Conv1d(inplanes, planes, 1, 1, 0, 1, 1, bias=bias)
-
-    def forward(self, x):
-        x = fixed_padding(x, self.conv1.kernel_size[0], dilation=self.conv1.dilation[0])
-        x = self.conv1(x)
-        x = self.bn(x)
-        x = self.pointwise(x)
+    def forward(self, x, coords, sigma):
+        # x = fixed_padding(x, self.kernel_size, dilation=self.dilation)
+        x = self.conv(x, coords, sigma)
+        # x = self.conv1(x)
+        # x = self.bn(x)
+        # x = self.pointwise(x)
         return x
 
 
@@ -254,9 +278,36 @@ class AlignedXception(nn.Module):
 
 
 if __name__ == "__main__":
-    import torch
-    model = AlignedXception(norm_layer=nn.BatchNorm1d, output_stride=16, input_size=9)
-    x = torch.rand(1, 9, 4096)
-    output, low_level_feat = model(x)
-    print(output.size())
-    print(low_level_feat.size())
+    batch_size = 2
+    in_channels = 4
+    out_channels = 16
+    num_points = 4096
+    kernel_size = 9
+    padding = 4
+    dilation = 1
+    stride = 1
+
+    feats = torch.rand((batch_size, in_channels, num_points), dtype=torch.float)
+    coords = torch.rand((batch_size, 3, num_points), dtype=torch.float)
+    # idx = torch.randint(0, num_points, (batch_size, groups, num_points), dtype=torch.int64)
+    # inverse_idx = torch.randint(0, num_points, (batch_size, groups, num_points), dtype=torch.int64)
+
+    # conv = WeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
+    #                       dilation=dilation, padding=padding, stride=stride)
+
+    # feats = torch.rand((batch_size, groups, in_channels, num_points), dtype=torch.float)
+    # coords = torch.rand((batch_size, groups, 3, num_points), dtype=torch.float)
+    conv = SeparableConv2d(in_channels, out_channels, kernel_size, stride, dilation,
+                           bias=False, BatchNorm=nn.BatchNorm1d)
+
+    start_time = time.time()
+    out = conv(feats, coords, sigma=1.5)
+
+    out.mean().backward()
+    print('Time elapsed: {:f}s'.format(time.time() - start_time))
+    print(out.shape)
+    # model = AlignedXception(norm_layer=nn.BatchNorm1d, output_stride=16, input_size=9)
+    # x = torch.rand(1, 9, 4096)
+    # output, low_level_feat = model(x)
+    # print(output.size())
+    # print(low_level_feat.size())
