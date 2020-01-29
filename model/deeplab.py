@@ -45,9 +45,9 @@ class DeepLab(nn.Module):
             # self.backbone = AlignedXception(output_stride=output_stride, in_channels=in_channels)
             # self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride, kernel_size=kernel_size)
 
-        # self.decoder = Decoder(channels, num_classes, kernel_size, sigma=sigma)
+        self.decoder = Decoder(channels, num_classes, kernel_size, sigma=sigma)
         # new decoder, gradually interpolate
-        self.decoder = C2FDecoder(channels, num_classes, kernel_size, sigma, drop=0.1, embed_channels=channels)
+        # self.decoder = C2FDecoder(channels, num_classes, kernel_size, sigma, drop=0.1, embed_channels=channels)
 
     def forward(self, input):
         # decoder_coords = input.detach()[:, :, ::4]

@@ -56,7 +56,7 @@ class DeConvBlock(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, in_channels, out_channels=256, kernel_size=9, sigma=1.0, embed_channels=48):
+    def __init__(self, in_channels, out_channels=256, kernel_size=9, sigma=1.0, embed_channels=48, up_ratio=4):
         super(Decoder, self).__init__()
 
         self.conv1 = nn.Conv1d(in_channels, embed_channels, 1, bias=False)
@@ -67,6 +67,8 @@ class Decoder(nn.Module):
         self.last_conv2 = DecoderConv(256, 256, kernel_size=kernel_size, drop=0.1, sigma=sigma)
 
         self.conv_out = nn.Conv1d(256, out_channels, kernel_size=1, stride=1)
+
+        self.up_ratio = up_ratio
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -80,6 +82,7 @@ class Decoder(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, x, low_level_feat, coords):
+        coords = coords[:, :, ::4]
         low_level_feat = self.conv1(low_level_feat)
         low_level_feat = self.bn1(low_level_feat)
         low_level_feat = self.relu(low_level_feat)
@@ -90,6 +93,7 @@ class Decoder(nn.Module):
         x = self.last_conv2(x, coords)
         x = self.conv_out(x)
 
+        x = F.interpolate(x, scale_factor=self.up_ratio, mode='linear', align_corners=True)
         return x
 
 
