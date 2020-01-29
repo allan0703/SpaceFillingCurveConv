@@ -7,7 +7,7 @@ __all__ = ['WeightedConv1D']
 
 
 class WeightedConv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, group=1):
         super(WeightedConv, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -16,10 +16,12 @@ class WeightedConv(nn.Module):
         self.dilation = dilation
         self.padding = padding
         self.stride = stride
+        # self.group = group
 
         self.weight = nn.Parameter(torch.Tensor(self.out_channels, self.in_channels, self.kernel_size[0]))
 
     def forward(self, x, coords, sigma):
+        # for x -> 4 x
         windows = F.unfold(x, kernel_size=self.kernel_size, padding=self.padding,
                            dilation=self.dilation, stride=self.stride)
         dist_weights = F.unfold(coords, kernel_size=self.kernel_size, padding=self.padding,

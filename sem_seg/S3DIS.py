@@ -8,6 +8,7 @@ import logging
 import time
 import uuid
 import pathlib
+import torch
 
 from torch.utils.data import Dataset, DataLoader
 from hilbertcurve.hilbertcurve import HilbertCurve
@@ -105,9 +106,13 @@ class S3DISDataset(Dataset):
         # order points in hilbert order
         points_voxel = np.floor(points_norm * (2 ** self.p - 1))
         hilbert_dist = np.zeros(points_voxel.shape[0])
-        for i in range(points_voxel.shape[0]):
-            hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :].astype(int))
-        idx = np.argsort(hilbert_dist)
+
+        rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+        rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
+        rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+        rotation_matrices = [np.eye(3), rotation_x, rotation_y, rotation_z]
+
+        multi_pointcloud, reindices, multi_coordinates = [], [], [] # reindices
 
         # return appropriate number of features
         if self.num_features == 4:
@@ -122,7 +127,37 @@ class S3DISDataset(Dataset):
             raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
                              .format(self.num_features))
 
-        return pointcloud[idx, :], coordinates[idx, :], label[idx]
+        for num_rotation in range(4):
+            points_voxel_rotation = np.matmul(points_voxel, rotation_matrices[num_rotation]).astype(int)  # 4*n * 3
+
+            if num_rotation:
+                # points_voxel_rotation = - points_voxel_rotation
+                # points_voxel_rotation[:, num_rotation-1] = -points_voxel_rotation[:, num_rotation-1]
+                points_voxel_rotation += (2 ** self.p - 1)
+                points_voxel_rotation[:, num_rotation - 1] -= (2 ** self.p - 1)
+
+            for i in range(points_voxel.shape[0]):
+                 hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[i, :3].astype(int))
+            idx = np.argsort(hilbert_dist)
+
+            index_sort = np.vstack((idx.copy(), np.arange(pointcloud.shape[0]))).transpose()  # n*2
+            index_sort = index_sort[index_sort[:, 0].argsort()]
+
+            reindices.append(torch.from_numpy(index_sort[:, 1]))
+            multi_coordinates.append(torch.from_numpy(coordinates[idx, :]))
+            multi_pointcloud.append(torch.from_numpy(pointcloud[idx, :]))
+
+            # if num_rotation == 0:
+            #     out_label = label[idx]
+
+        # multi_index = torch.stack(multi_index, dim=0)
+        multi_pointcloud = torch.stack(multi_pointcloud, dim=-1)  # get t*n*c
+        multi_coordinates = torch.stack(multi_coordinates, dim=-1)
+        reindices = torch.stack(reindices, dim=-1)
+        # multi_pointcloud = multi_pointcloud.permute(1, 2, 0)  #
+        # multi_coordinates = multi_coordinates.permute(1, 2, 0)
+        # return pointcloud[idx, :], coordinates[idx, :], label[idx], reindices  n*c n*3 n*1
+        return multi_pointcloud, multi_coordinates, label, reindices   #n*c*t n*3*t n*1 n*4
 
 
 class S3DIS:
@@ -333,8 +368,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    args.root_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/S3DIS/indoor3d_sem_seg_hdf5_data'
-    args.model_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/3d_datasets/S3DIS/indoor3d_sem_seg_hdf5_data'
+    args.root_dir = '/home/wangh0j/data/sfc/S3DIS/raw'
+    args.model_dir = '/home/wangh0j/SFC-Convs/log/'
 
     dataset = S3DIS(args)
     dataloaders = dataset.get_dataloaders()

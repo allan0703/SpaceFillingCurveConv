@@ -50,7 +50,7 @@ def train(dataset, model_dir, writer):
     else:
         model = deeplab(backbone=dataset.config.backbone, input_size=dataset.config.num_feats,
                         num_classes=dataset.config.num_classes, kernel_size=dataset.config.kernel_size,
-                        sigma=1.5).to(device)
+                        sigma=dataset.config.sigma).to(device)
 
     # if use multi_gou then convert the model to DataParallel
     if dataset.config.multi_gpu:
@@ -110,10 +110,11 @@ def train(dataset, model_dir, writer):
                 data = inputs[0].to(device, dtype=torch.float).permute(0, 2, 1)
                 coords = inputs[1].to(device, dtype=torch.float).permute(0, 2, 1)
                 label = inputs[2].to(device, dtype=torch.long)
+                reindices = inputs[3].to(device, dtype=torch.int16)
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
-                    out = model(data, coords)
+                    out = model(data, coords, reindices)
                     loss = criterion(out, label)
                     if phase == 'train':
                         optimizer.zero_grad()
