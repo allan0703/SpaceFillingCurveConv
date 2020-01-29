@@ -53,11 +53,11 @@ class WeightedConvTranspose(nn.Module):
 
     def forward(self, x, coords, sigma):
         x_t = torch.zeros((x.shape[0], x.shape[1], self.stride[0] * x.shape[2], self.stride[1] * x.shape[3]),
-                          dtype=x.dtype)
+                          dtype=x.dtype, device=x.device)
         x_t[:, :, ::self.stride[0], ::self.stride[1]] = x
 
         coords_t = torch.zeros((coords.shape[0], coords.shape[1], self.stride[0] * coords.shape[2],
-                                self.stride[1] * coords.shape[3]), dtype=coords.dtype)
+                                self.stride[1] * coords.shape[3]), dtype=coords.dtype, device=coords.device)
         coords_t[:, :, ::self.stride[0], ::self.stride[1]] = coords
 
         windows = F.unfold(x_t, kernel_size=self.kernel_size, padding=self.padding,
@@ -161,13 +161,15 @@ if __name__ == '__main__':
     dilation = 2
     stride = 2
 
-    feats = torch.rand((batch_size, in_channels, num_points), dtype=torch.float)
-    coords = torch.rand((batch_size, 3, num_points), dtype=torch.float)
+    device = torch.device('cuda:0')
+
+    feats = torch.rand((batch_size, in_channels, num_points), dtype=torch.float).to(device)
+    coords = torch.rand((batch_size, 3, num_points), dtype=torch.float).to(device)
     # idx = torch.randint(0, num_points, (batch_size, groups, num_points), dtype=torch.int64)
     # inverse_idx = torch.randint(0, num_points, (batch_size, groups, num_points), dtype=torch.int64)
 
     conv = WeightedConvTranspose1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
-                                   dilation=dilation, padding=padding, stride=stride)
+                                   dilation=dilation, padding=padding, stride=stride).to(device)
 
     # conv = WeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
     #                       dilation=dilation, padding=padding, stride=stride)
