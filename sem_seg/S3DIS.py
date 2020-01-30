@@ -151,7 +151,7 @@ class S3DISDataset(Dataset):
             #     out_label = label[idx]
 
         # multi_index = torch.stack(multi_index, dim=0)
-        multi_pointcloud = torch.stack(multi_pointcloud, dim=-1)  # get t*n*c
+        multi_pointcloud = torch.stack(multi_pointcloud, dim=-1)  # get n*c*t
         multi_coordinates = torch.stack(multi_coordinates, dim=-1)
         reindices = torch.stack(reindices, dim=-1)
         # multi_pointcloud = multi_pointcloud.permute(1, 2, 0)  #
