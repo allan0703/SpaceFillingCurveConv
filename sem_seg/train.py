@@ -107,10 +107,11 @@ def train(dataset, model_dir, writer):
             for step_number, inputs in enumerate(tqdm(dataloaders[phase],
                                                       desc='[{}/{}] {} '.format(epoch + 1, dataset.config.max_epochs,
                                                                                 phase))):
-                data = inputs[0].to(device, dtype=torch.float).permute(0, 2, 1, 3)
+                data = inputs[0].to(device, dtype=torch.float).permute(0, 2, 1)
                 coords = inputs[1].to(device, dtype=torch.float).permute(0, 2, 1, 3)
                 label = inputs[2].to(device, dtype=torch.long)
-                reindices = inputs[3].to(device, dtype=torch.long)
+                indices = inputs[3].to(device, dtype=torch.long)
+                reindices = inputs[4].to(device, dtype=torch.long)
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):

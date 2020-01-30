@@ -1,10 +1,55 @@
 import torch
 from torch import nn
-from torch.nn import functional as F
+from torch.nn import functional as F, Sequential as Seq
 import time
 
 __all__ = ['WeightedConv1D']
 
+
+class MultiSeq(Seq):
+    def __init__(self, *args):
+        super(MultiSeq, self).__init__(*args)
+
+    def forward(self, *inputs):
+        for module in self._modules.values():
+            if type(inputs) == tuple:
+                inputs = module(*inputs)
+            else:
+                inputs = module(inputs)
+        return inputs
+
+
+class WeightedConv2D(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, group=1, T=4):
+        super(WeightedConv2D, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
+        self.kernel_size = kernel_size
+        self.dilation = dilation
+        self.padding = padding
+        self.stride = stride
+        # self.group = group
+        self.conv = MultiSeq(*[WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding, stride),
+                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding, stride),
+                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding, stride),
+                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding, stride)])
+
+        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(int(out_channels * T), out_channels, 1, padding=1),
+                                               nn.BatchNorm1d(out_channels), nn.ReLU(inplace=True)
+                                               )
+
+    def forward(self, input, multi_coords, indices, reindices, sigma=0.05):
+        out = []
+        for i in range(multi_coords.shape[-1]):
+            input = torch.gather(input, dim=-1, index=indices[:, :, i].unsqueeze(1).repeat(1, self.in_channels, 1))  # reindices[:,i]
+            coords = multi_coords[:, :, :, i]
+            x = self.conv[i](input, coords)
+            x = torch.gather(x, dim=-1, index=reindices[:, :, i].unsqueeze(1).repeat(1, self.out_channels, 1))  # reindices[:,i]
+            out.append(x)
+        out = torch.cat(out, dim=1)  # out : B X CT X N
+        out = self.fusion_multi_conv(out)
+        return out
 
 class WeightedConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, group=1):
@@ -83,15 +128,27 @@ if __name__ == '__main__':
     in_channels = 4
     out_channels = 16
     num_points = 4096
+    T = 4
     kernel_size = 9
     padding = 4
     dilation = 1
     stride = 1
 
     feats = torch.rand((batch_size, in_channels, num_points), dtype=torch.float)
-    coords = torch.rand((batch_size, 3, num_points), dtype=torch.float)
-
-    conv = WeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
+    coords = torch.rand((batch_size, 3, num_points, T), dtype=torch.float)
+    reindices1 = torch.stack([torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points)], dim=-1).long()
+    reindices2 = torch.stack([torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points)], dim=-1).long()
+    reindices = torch.rand((batch_size, num_points, T))
+    reindices[0]= reindices1
+    reindices[1]=reindices2
+    reindices = reindices.long()
+    indices1 = torch.stack([torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points)], dim=-1).long()
+    indices2 = torch.stack([torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points)], dim=-1).long()
+    indices = torch.rand((batch_size, num_points, T))
+    indices[0]= indices1
+    indices[1]= indices2
+    indices = indices.long()
+    conv = WeightedConv2D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
                           dilation=dilation, padding=padding, stride=stride)
 
     # feats = torch.rand((batch_size, groups, in_channels, num_points), dtype=torch.float)
@@ -100,7 +157,7 @@ if __name__ == '__main__':
     #                                groups=groups, dilation=dilation, padding=padding, stride=stride)
 
     start_time = time.time()
-    out = conv(feats, coords)
+    out = conv(feats, coords,indices,reindices)
 
     out.mean().backward()
     print('Time elapsed: {:f}s'.format(time.time() - start_time))

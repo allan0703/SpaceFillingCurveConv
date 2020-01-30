@@ -29,9 +29,9 @@ class DeepLab(nn.Module):
             self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride, kernel_size=kernel_size)
 
         self.decoder = decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma)
-        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(num_classes*T, 256, 3, padding=1),
+        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(num_classes*T, 256, 1, padding=1),
                                                nn.BatchNorm1d(256), nn.ReLU(inplace=True),
-                                               nn.Conv1d(256, 64, 3, padding=1),
+                                               nn.Conv1d(256, 64, 1, padding=1),
                                                nn.BatchNorm1d(64), nn.ReLU(inplace=True),
                                                nn.Conv1d(64, num_classes, 1)
                                                )

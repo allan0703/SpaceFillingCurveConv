@@ -112,7 +112,7 @@ class S3DISDataset(Dataset):
         rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
         rotation_matrices = [np.eye(3), rotation_x, rotation_y, rotation_z]
 
-        multi_pointcloud, reindices, multi_coordinates = [], [], [] # reindices
+        indices, reindices, multi_coordinates = [], [], [] # reindices
 
         # return appropriate number of features
         if self.num_features == 4:
@@ -139,25 +139,19 @@ class S3DISDataset(Dataset):
             for i in range(points_voxel.shape[0]):
                  hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[i, :3].astype(int))
             idx = np.argsort(hilbert_dist)
+            indices.append(idx)
+            multi_coordinates.append(torch.from_numpy(coordinates[idx, :]))
 
             index_sort = np.vstack((idx.copy(), np.arange(pointcloud.shape[0]))).transpose()  # n*2
             index_sort = index_sort[index_sort[:, 0].argsort()]
-
             reindices.append(torch.from_numpy(index_sort[:, 1]))
-            multi_coordinates.append(torch.from_numpy(coordinates[idx, :]))
-            multi_pointcloud.append(torch.from_numpy(pointcloud[idx, :]))
 
-            # if num_rotation == 0:
-            #     out_label = label[idx]
 
-        # multi_index = torch.stack(multi_index, dim=0)
-        multi_pointcloud = torch.stack(multi_pointcloud, dim=-1)  # get n*c*t
+        indices = torch.stack(indices, dim=-1)  # get n*4
         multi_coordinates = torch.stack(multi_coordinates, dim=-1)
         reindices = torch.stack(reindices, dim=-1)
-        # multi_pointcloud = multi_pointcloud.permute(1, 2, 0)  #
-        # multi_coordinates = multi_coordinates.permute(1, 2, 0)
-        # return pointcloud[idx, :], coordinates[idx, :], label[idx], reindices  n*c n*3 n*1
-        return multi_pointcloud, multi_coordinates, label, reindices   #n*c*t n*3*t n*1 n*4
+
+        return pointcloud, multi_coordinates, label, indices, reindices   #n*c n*3*t n*1 n*4,n*4
 
 
 class S3DIS:
