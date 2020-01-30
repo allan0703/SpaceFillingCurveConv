@@ -29,7 +29,7 @@ class DeepLab(nn.Module):
             self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride, kernel_size=kernel_size)
 
         self.decoder = decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma)
-        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(num_classes*T, 64, 1),
+        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(num_classes * T, 64, 1),
                                                nn.BatchNorm1d(64), nn.ReLU(inplace=True),
                                                nn.Conv1d(64, num_classes, 1)
                                                )
@@ -49,7 +49,8 @@ class DeepLab(nn.Module):
             x = F.interpolate(x, size=input.size(-1), mode='linear', align_corners=True)
 
             # reorder x
-            x = torch.gather(x, dim=-1, index=reindices[:, :, i].unsqueeze(1).repeat(1, self.num_classes, 1))  # reindices[:,i]
+            x = torch.gather(x, dim=-1,
+                             index=reindices[:, :, i].unsqueeze(1).repeat(1, self.num_classes, 1))  # reindices[:,i]
             out.append(x)
         out = torch.cat(out, dim=1)  # out : B X CT X N
         out = self.fusion_multi_conv(out)
@@ -64,10 +65,9 @@ if __name__ == '__main__':
     x = torch.rand((4, 4, 4096, 4), dtype=torch.float)
     coords = torch.rand((4, 3, 4096, 4), dtype=torch.float)
     reindices = torch.stack((torch.randperm(4096), torch.randperm(4096),
-                             torch.randperm(4096),torch.randperm(4096)), dim=0)
+                             torch.randperm(4096), torch.randperm(4096)), dim=0)
     print('Input size {}'.format(x.size()))
     net = deeplab(input_size=4, num_classes=13, backbone='resnet18', kernel_size=9)
     out = net(x, coords, reindices)
 
     print('Output size {}'.format(out.size()))
-
