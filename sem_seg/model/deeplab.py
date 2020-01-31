@@ -36,7 +36,7 @@ class DeepLab(nn.Module):
                                                nn.Conv1d(64, num_classes, 1)
                                                )
 
-    def forward(self, multi_input, multi_coords, reindices):
+    def forward(self, input, multi_coords, indices, reindices):
         out = []
         for i in range(multi_input.shape[-1]):
             input = multi_input[:, :, :, i]

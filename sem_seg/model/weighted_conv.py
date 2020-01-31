@@ -20,7 +20,7 @@ class MultiSeq(Seq):
 
 
 class WeightedConv2D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, group=1, T=4):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, group=1, t=4):
         super(WeightedConv2D, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -30,12 +30,12 @@ class WeightedConv2D(nn.Module):
         self.padding = padding
         self.stride = stride
         # self.group = group
-        self.conv = MultiSeq(*[WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding, stride),
-                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding, stride),
-                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding, stride),
-                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding, stride)])
+        self.conv = MultiSeq(*[WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
+                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
+                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
+                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding)])
 
-        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(int(out_channels * T), out_channels, 1, padding=1),
+        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(int(out_channels * T), out_channels, 1, padding=1, stride=stride),
                                                nn.BatchNorm1d(out_channels), nn.ReLU(inplace=True)
                                                )
 

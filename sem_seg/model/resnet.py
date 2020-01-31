@@ -3,7 +3,7 @@ import torch.nn as nn
 import logging
 import time
 
-from .weighted_conv import WeightedConv1D
+from model.weighted_conv import WeightedConv2D
 
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']
@@ -20,7 +20,7 @@ def convKxK(in_planes, out_planes, stride=1, k=9, dilation=1):
     """Kx1 weighted convolution"""
     padding = k // 2
 
-    return WeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation, padding=padding, stride=stride)
+    return WeightedConv2D(in_planes, out_planes, kernel_size=k, dilation=dilation, padding=padding, stride=stride)
 
 
 def conv1x1(in_planes, out_planes, stride=1):
@@ -49,19 +49,20 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, inputs):
-        x, coords = inputs
-
+    def forward(self, inputs, multi_coords, indices, reindices):
+        x = inputs # now is b*c*n original point cloud
+        coords = multi_coords  # now is b*3*n*t indices is b* n*4 reindices is b * n *4
         identity = x
 
-        out = self.conv1(x, coords, self.sigma)
-        coords = coords[:, :, ::self.stride]
+        out = self.conv1(x, coords, indices, reindices, self.sigma)
+        coords = coords[:, :, ::self.stride, :]
+
 
         #
         out = self.bn1(out)
         out = self.relu(out)
 
-        out = self.conv2(out, coords, self.sigma * self.stride)
+        out = self.conv2(out, coords, indices, reindices, self.sigma * self.stride)
         out = self.bn2(out)
 
         if self.downsample is not None:
@@ -70,7 +71,7 @@ class BasicBlock(nn.Module):
         out += identity
         out = self.relu(out)
 
-        return out, coords
+        return out
 
 
 class Bottleneck(nn.Module):
@@ -95,17 +96,19 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, inputs):
-        x, coords = inputs
-
+    def forward(self, input, multi_coords, indices, reindices):
+        x = input #b*c*n
+        coords = multi_coords
         identity = x
 
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
 
-        out = self.conv2(out, coords, self.sigma)
-        coords = coords[:, :, ::self.stride]
+        out = self.conv2(out, coords, indices, reindices, self.sigma)
+        coords = coords[:, :, ::self.stride, :] #b*c*(n/2)*t
+        selected_indices = torch.arange(0, x.shape[2], self.stride).expand(coords.shape[0], coords.shape[3],coords.shape[2] ).transpose(2,1) #b*(n/2)*t selected original points(indices)
+        indices = torch.gather(indices, 2, selected_indices)
 
         out = self.bn2(out)
         out = self.relu(out)
