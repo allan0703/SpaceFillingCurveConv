@@ -367,7 +367,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', default=0, type=int)
     parser.add_argument('--model', default=None, type=str)
     parser.add_argument('--backbone', default=None, type=str)
-    parser.add_argument('--kernel_size', default=None, type=int)
+    parser.add_argument('--kernel_size', default=3, type=int)
     parser.add_argument('--batch_size', default=None, type=int)
     parser.add_argument('--lr', default=None, type=float)
     parser.add_argument('--bias', default=False, action='store_true')
