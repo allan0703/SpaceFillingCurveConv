@@ -107,10 +107,10 @@ def train(dataset, model_dir, writer):
             for step_number, inputs in enumerate(tqdm(dataloaders[phase],
                                                       desc='[{}/{}] {} '.format(epoch + 1, dataset.config.max_epochs,
                                                                                 phase))):
-                data = inputs[0].to(device, dtype=torch.float).permute(0, 2, 1)
-                coords = inputs[1].to(device, dtype=torch.float).permute(0, 2, 1)
+                data = inputs[0].to(device, dtype=torch.float)
+                coords = inputs[1].to(device, dtype=torch.float)
                 label = inputs[2].to(device, dtype=torch.long)
-
+                # todo: data and coords not consistent
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
                     out = model(data, coords)
@@ -243,6 +243,8 @@ if __name__ == '__main__':
                         help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str,
                         help='logging level')
+    parser.add_argument('--width', default=64, type=int)
+    parser.add_argument('--hyperpara_search', default=False, action='store_true')
 
     args = parser.parse_args()
 

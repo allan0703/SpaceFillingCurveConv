@@ -4,18 +4,18 @@ import torch.nn.functional as F
 import logging
 import time
 
-from .weighted_conv import WeightedConv1D
+from model.weighted_conv import WeightedConv2d
 
 __all__ = ['aspp']
 
 
 class ASPPConv(nn.Module):
-    def __init__(self, in_channels, out_channels, dilation, kernel_size=9, sigma=1.0):
+    def __init__(self, in_channels, out_channels, dilation, kernel_size=3, sigma=1.0):
         super(ASPPConv, self).__init__()
         self.sigma = sigma
-        self.conv = WeightedConv1D(in_channels, out_channels, kernel_size, padding=dilation * (kernel_size // 2),
+        self.conv = WeightedConv2d(in_channels, out_channels, kernel_size, padding=dilation * (kernel_size // 2),
                                    dilation=dilation)
-        self.bn = nn.BatchNorm1d(out_channels)
+        self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU()
 
     def forward(self, x, coords):
@@ -29,13 +29,13 @@ class ASPPConv(nn.Module):
 class ASPPPooling(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(ASPPPooling, self).__init__()
-        self.pool = nn.AdaptiveAvgPool1d(1)
-        self.conv = nn.Conv1d(in_channels, out_channels, 1, bias=False)
-        self.bn = nn.BatchNorm1d(out_channels)
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.conv = nn.Conv2d(in_channels, out_channels, 1, bias=False)
+        self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        size = x.shape[-1]
+        size = x.shape[2:4]
         # print('Before pool ', x.size())
         x = self.pool(x)
         # print('After pool ', x.size())
@@ -45,7 +45,8 @@ class ASPPPooling(nn.Module):
         x = self.relu(x)
         # print('Interpolating with size {}'.format(size))
         # print('Size of x before interpolate {}'.format(x.size()))
-        x = F.interpolate(x, size=size, mode='linear', align_corners=False)
+        # x = F.interpolate(x, size=size, mode='bicubic', align_corners=False)
+        x = x.repeat(1, 1, size[0], size[1])
         # print('Size of x after interpolate {}'.format(x.size()))
         return x
 
@@ -67,8 +68,8 @@ class ASPP(nn.Module):
         #     nn.ReLU()))
 
         self.conv1 = nn.Sequential(
-            nn.Conv1d(in_channels, out_channels, 1, bias=False),
-            nn.BatchNorm1d(out_channels),
+            nn.Conv2d(in_channels, out_channels, 1, bias=False),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU())
 
         modules.append(ASPPConv(in_channels, out_channels, dilations[0], kernel_size, sigma))
@@ -77,20 +78,20 @@ class ASPP(nn.Module):
 
         self.convs = nn.ModuleList(modules)
 
-        self.pool = ASPPPooling(in_channels, out_channels)
+        self.pool = ASPPPooling(in_channels, out_channels)  #  global feature
 
         self.project = nn.Sequential(
-            nn.Conv1d(5 * out_channels, out_channels, 1, bias=False),
-            nn.BatchNorm1d(out_channels),
+            nn.Conv2d(5 * out_channels, out_channels, 1, bias=False),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(),
             nn.Dropout(0.5))
 
         for m in self.modules():
-            if isinstance(m, nn.Conv1d):
+            if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, WeightedConv1D):
+            elif isinstance(m, WeightedConv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, (nn.BatchNorm1d, nn.GroupNorm)):
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
@@ -120,9 +121,9 @@ if __name__ == '__main__':
 
     device = torch.device('cpu')
 
-    feats = torch.rand((4, 512, 128), dtype=torch.float).to(device)
-    coords = torch.rand((4, 3, 128), dtype=torch.float).to(device)
-    k = 21
+    feats = torch.rand((4, 512, 64, 128), dtype=torch.float).to(device)
+    coords = torch.rand((4, 3, 64, 128), dtype=torch.float).to(device)
+    k = 3
 
     net = aspp(in_channels=512, out_channels=256, output_stride=16, kernel_size=k).to(device)
 

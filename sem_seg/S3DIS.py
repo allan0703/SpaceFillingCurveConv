@@ -70,12 +70,12 @@ def get_hilbert_rotations(points, theta=np.pi):
 
 
 class S3DISDataset(Dataset):
-    def __init__(self, data_label, num_features=9, augment=False):
+    def __init__(self, data_label, num_features=9, width=64, augment=False):
         self.augment = augment
         self.num_features = num_features
         self.data, self.label = data_label
         self.p = 7
-
+        self.width = width
         # compute hilbert order for voxelized space
         logging.info('Computing hilbert distances...')
         self.hilbert_curve = HilbertCurve(self.p, 3)
@@ -121,8 +121,11 @@ class S3DISDataset(Dataset):
         else:
             raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
                              .format(self.num_features))
+        pointcloud = pointcloud[idx, :].transpose(1, 0).reshape((self.num_features, -1, self.width))
+        coordinates = coordinates[idx, :].transpose(1, 0).reshape((3, -1, self.width))
+        label = label[idx].reshape(-1, self.width)
 
-        return pointcloud[idx, :], coordinates[idx, :], label[idx]
+        return pointcloud, coordinates, label   #
 
 
 class S3DIS:
@@ -213,10 +216,19 @@ class S3DIS:
         if args.bias is not None:
             config.bias = args.bias
 
+        if args.hyperpara_search:
+            config.kernel_size = np.random.choice([3, 5, 9])
+            config.num_feats = np.random.choice([4, 5, 9])  # 4  # np.random.choice([4, 9])
+            config.lr = np.random.choice([1e-3, 1e-4])
+            config.sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
+
+        # config.height = args.height
+        config.width = args.width
         config.gpu_index = args.gpu
         config.multi_gpu = args.multi_gpu
         config.root_dir = args.root_dir
         config.model_dir = args.model_dir
+
 
         return config
 
@@ -299,9 +311,11 @@ class S3DIS:
         datasets = {
             'train': S3DISDataset(data_label=(train_data, train_label),
                                   num_features=self.config.num_feats,
+                                  width=self.config.width,
                                   augment=self.config.augment),
             'test': S3DISDataset(data_label=(test_data, test_label),
                                  num_features=self.config.num_feats,
+                                 width=self.config.width,
                                  augment=False)
         }
 
@@ -330,11 +344,13 @@ if __name__ == '__main__':
     parser.add_argument('--lr', default=None, type=float)
     parser.add_argument('--bias', default=False, action='store_true')
     parser.add_argument('--augment', default=True, action='store_true')
+    # parser.add_argument('--height', default=64, type=int)
+    parser.add_argument('--width', default=64, type=int)
 
     args = parser.parse_args()
 
-    args.root_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/S3DIS/indoor3d_sem_seg_hdf5_data'
-    args.model_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/3d_datasets/S3DIS/indoor3d_sem_seg_hdf5_data'
+    # args.root_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/S3DIS/indoor3d_sem_seg_hdf5_data'
+    # args.model_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/3d_datasets/S3DIS/indoor3d_sem_seg_hdf5_data'
 
     dataset = S3DIS(args)
     dataloaders = dataset.get_dataloaders()

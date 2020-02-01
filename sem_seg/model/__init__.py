@@ -1,6 +1,6 @@
 # __init__.py
-from .weighted_conv import WeightedConv1D
-from .xception import AlignedXception
-from .resnet import resnet18, resnet101
-from .aspp import aspp
-from .decoder import decoder
+from model.weighted_conv import WeightedConv2d
+from model.xception import AlignedXception
+from model.resnet import resnet18, resnet101
+from model.aspp import aspp
+from model.decoder import decoder

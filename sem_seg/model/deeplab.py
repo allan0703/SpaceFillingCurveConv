@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .xception import AlignedXception
-from .resnet import resnet18, resnet101
-from .aspp import aspp
-from .decoder import decoder
+from model.xception import AlignedXception
+from model.resnet import resnet18, resnet101
+from model.aspp import aspp
+from model.decoder import decoder
 
 __all__ = ['deeplab']
 
@@ -30,14 +30,14 @@ class DeepLab(nn.Module):
         self.decoder = decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma)
 
     def forward(self, input, coords):
-        decoder_coords = coords[:, :, ::4]
+        decoder_coords = coords[:, :, ::4, ::4]
         x, low_level_feat, coords = self.backbone(input, coords)
         # print('Backbone: Output size {} Feat size {}'.format(x.size(), low_level_feat.size()))
         x = self.aspp(x, coords)
         # print('ASPP: Output size {} - {}'.format(x.size(), coords.size()))
         x = self.decoder(x, low_level_feat, decoder_coords)
         # print('Decoder: Output size {}'.format(x.size()))
-        x = F.interpolate(x, size=input.size(-1), mode='linear', align_corners=True)
+        x = F.interpolate(x, size=input.shape[2:4], mode='bicubic', align_corners=True)
 
         return x
 
@@ -47,10 +47,10 @@ def deeplab(backbone='resnet101', input_size=3, output_stride=16, num_classes=21
 
 
 if __name__ == '__main__':
-    x = torch.rand((4, 4, 4096), dtype=torch.float)
-    coords = torch.rand((4, 3, 4096), dtype=torch.float)
+    x = torch.rand((4, 6, 64, 256), dtype=torch.float)
+    coords = torch.rand((4, 3, 64, 256), dtype=torch.float)
     print('Input size {}'.format(x.size()))
-    net = deeplab(input_size=4, num_classes=13, backbone='resnet18', kernel_size=9)
+    net = deeplab(input_size=6, num_classes=13, backbone='resnet101', kernel_size=3)
     out = net(x, coords)
 
     print('Output size {}'.format(out.size()))

@@ -3,7 +3,7 @@ import torch.nn as nn
 import logging
 import time
 
-from .weighted_conv import WeightedConv1D
+from model.weighted_conv import WeightedConv2d
 
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']
@@ -16,11 +16,16 @@ __all__ = ['resnet18', 'resnet50', 'resnet101']
 #                      padding=dilation * padding, groups=groups, bias=False, dilation=dilation)
 
 
-def convKxK(in_planes, out_planes, stride=1, k=9, dilation=1):
+def convKxK(in_planes, out_planes, stride=1, kernel_size=3, dilation=1):
     """Kx1 weighted convolution"""
-    padding = k // 2
+    padding = kernel_size // 2
 
-    return WeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation, padding=padding, stride=stride)
+    return WeightedConv2d(in_planes, out_planes, kernel_size, dilation=dilation, padding=padding, stride=stride)
+
+
+def conv2x2(in_planes, out_planes, stride=1):
+    """2x2 convolution"""
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
 
 def conv1x1(in_planes, out_planes, stride=1):
@@ -76,20 +81,21 @@ class BasicBlock(nn.Module):
 class Bottleneck(nn.Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride=1, k=9, downsample=None, groups=1,
+    def __init__(self, inplanes, planes, stride=1, k=3, downsample=None, groups=1,
                  base_width=64, dilation=1, sigma=1.0):
         super(Bottleneck, self).__init__()
 
         self.sigma = sigma
-        norm_layer = nn.BatchNorm1d
+        norm_layer = nn.BatchNorm2d
 
         width = int(planes * (base_width / 64.)) * groups
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
-        self.conv1 = conv1x1(inplanes, width)
+        self.conv1 = conv2x2(inplanes, width)
         self.bn1 = norm_layer(width)
         self.conv2 = convKxK(width, width, stride, k, dilation)
         self.bn2 = norm_layer(width)
-        self.conv3 = conv1x1(width, planes * self.expansion)
+
+        self.conv3 = conv2x2(width, planes * self.expansion)
         self.bn3 = norm_layer(planes * self.expansion)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
@@ -105,7 +111,7 @@ class Bottleneck(nn.Module):
         out = self.relu(out)
 
         out = self.conv2(out, coords, self.sigma)
-        coords = coords[:, :, ::self.stride]
+        coords = coords[:, :, ::self.stride, ::self.stride]
 
         out = self.bn2(out)
         out = self.relu(out)
@@ -127,7 +133,7 @@ class ResNet(nn.Module):
                  groups=1, width_per_group=64, replace_stride_with_dilation=None, sigma=1.0):
         super(ResNet, self).__init__()
 
-        norm_layer = nn.BatchNorm1d
+        norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
 
         self.inplanes = 64
@@ -144,14 +150,14 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        # self.conv1 = nn.Conv1d(input_size, self.inplanes, kernel_size=49, stride=2, padding=24,
-        #                        bias=False)
-        # self.conv1 = WeightedConv1D(input_size, self.inplanes, kernel_size=49, stride=2, padding=24)
-        self.conv1 = convKxK(input_size, self.inplanes, stride=2, k=49, dilation=1)
+
+        self.conv1 = convKxK(input_size, self.inplanes, stride=2, kernel_size=k, dilation=1)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
+
+        self.maxpool = nn.MaxPool2d(kernel_size=k, stride=2, padding=k//2)
         self.sigma *= 4
+
         self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[0], sigma=self.sigma)
@@ -161,15 +167,15 @@ class ResNet(nn.Module):
         self.sigma *= 2
         self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[2], sigma=self.sigma)
-        self.avgpool = nn.AdaptiveAvgPool1d(1)
+        self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():
-            if isinstance(m, nn.Conv1d):
+            if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, WeightedConv1D):
+            elif isinstance(m, WeightedConv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, (nn.BatchNorm1d, nn.GroupNorm)):
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
@@ -184,7 +190,7 @@ class ResNet(nn.Module):
                 if isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
-    def _make_layer(self, block, planes, blocks, k=9, stride=1, dilate=False, sigma=1.0):
+    def _make_layer(self, block, planes, blocks, k=3, stride=1, dilate=False, sigma=1.0):
         norm_layer = self._norm_layer
         downsample = None
         previous_dilation = self.dilation
@@ -193,8 +199,8 @@ class ResNet(nn.Module):
             stride = 1
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
-                conv1x1(self.inplanes, planes * block.expansion, stride),
-                norm_layer(planes * block.expansion),
+                conv2x2(self.inplanes, planes * block.expansion, stride),
+                norm_layer(planes * block.expansion)
             )
 
         layers = []
@@ -213,10 +219,12 @@ class ResNet(nn.Module):
         x = self.conv1(x, coords)
         x = self.bn1(x)
         x = self.relu(x)
+        coords = coords[:, :, ::self.conv1.stride, ::self.conv1.stride]
+
         # print('Size after conv1: {}'.format(x.size()))
         x = self.maxpool(x)
         # print('Size after maxpool: {}'.format(x.size()))
-        coords = coords[:, :, ::4]
+        coords = coords[:, :, ::self.maxpool.stride, ::self.maxpool.stride]
         x, coords = self.layer1((x, coords))
         # print('Size after layer1: {}'.format(x.size()))
         low_level_feats = x
@@ -249,7 +257,7 @@ def resnet50(kernel_size=9, **kwargs):
     return _resnet(Bottleneck, [3, 4, 6, 3], kernel_size, **kwargs)
 
 
-def resnet101(kernel_size=9, **kwargs):
+def resnet101(kernel_size=3, **kwargs):
     r"""ResNet-50 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
     """
@@ -266,16 +274,18 @@ if __name__ == '__main__':
 
     device = torch.device('cpu')
 
-    feats = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
-    coords = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
-    k = 21
+    in_channels = 6
+    feats = torch.rand((4, in_channels, 64, 64), dtype=torch.float).to(device)
+    coords = torch.rand((4, 3, 64, 64), dtype=torch.float).to(device)
+    k = 3
 
-    net = resnet101(kernel_size=k, input_size=3, num_classes=40).to(device)
+    net = resnet101(kernel_size=k, input_size=in_channels, num_classes=13).to(device)
 
     start_time = time.time()
     out, low_level_feats, out_coords = net(feats, coords)
     logging.info('It took {:f}s'.format(time.time() - start_time))
     # out = out.mean(dim=1)
+    logging.info('Input size {}'.format(feats.size()))
     logging.info('Output size {}'.format(out.size()))
     logging.info('Feats size {}'.format(low_level_feats.size()))
     logging.info('Out coords size {}'.format(out_coords.size()))
