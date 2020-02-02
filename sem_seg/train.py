@@ -107,14 +107,15 @@ def train(dataset, model_dir, writer):
             for step_number, inputs in enumerate(tqdm(dataloaders[phase],
                                                       desc='[{}/{}] {} '.format(epoch + 1, dataset.config.max_epochs,
                                                                                 phase))):
-                data = inputs[0].to(device, dtype=torch.float)
-                coords = inputs[1].to(device, dtype=torch.float)
-                label = inputs[2].to(device, dtype=torch.long)
+                data = inputs[0].to(device, dtype=torch.float)  # b*num_feats*64*64
+                coords = inputs[1].to(device, dtype=torch.float)  # b*3*64*64
+                label = inputs[2].to(device, dtype=torch.long)  # b*64*64
                 # todo: data and coords not consistent
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
-                    out = model(data, coords)
+                    out = model(data, coords) #b*13*64*64
                     loss = criterion(out, label)
+                    # loss1 = criterion(out.reshape(out.shape[0], out.shape[1], -1), label.reshape(label.shape[0],-1))
                     if phase == 'train':
                         optimizer.zero_grad()
                         loss.backward()

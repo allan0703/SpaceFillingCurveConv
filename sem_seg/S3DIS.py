@@ -121,6 +121,7 @@ class S3DISDataset(Dataset):
         else:
             raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
                              .format(self.num_features))
+
         pointcloud = pointcloud[idx, :].transpose(1, 0).reshape((self.num_features, -1, self.width))
         coordinates = coordinates[idx, :].transpose(1, 0).reshape((3, -1, self.width))
         label = label[idx].reshape(-1, self.width)
@@ -217,8 +218,8 @@ class S3DIS:
             config.bias = args.bias
 
         if args.hyperpara_search:
-            config.kernel_size = int(np.random.choice([3, 5, 9]))
-            # config.kernel_size = np.random.choice([3, 5, 9])
+            # config.kernel_size = int(np.random.choice([3, 5, 9]))
+            config.kernel_size = int(1)
             config.num_feats = np.random.choice([4, 5, 9])  # 4  # np.random.choice([4, 9])
             config.lr = np.random.choice([1e-3, 1e-4])
             config.sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
@@ -335,7 +336,7 @@ if __name__ == '__main__':
     parser.add_argument('--root_dir', default='', type=str)
     parser.add_argument('--model_dir', default='', type=str)
     parser.add_argument('--test_area', default=5, type=int)
-    parser.add_argument('--num_feats', default=5, type=int)
+    parser.add_argument('--num_feats', default=9, type=int)
     parser.add_argument('--multi_gpu', default=False, action='store_true')
     parser.add_argument('--gpu', default=0, type=int)
     parser.add_argument('--model', default=None, type=str)
@@ -347,11 +348,12 @@ if __name__ == '__main__':
     parser.add_argument('--augment', default=True, action='store_true')
     # parser.add_argument('--height', default=64, type=int)
     parser.add_argument('--width', default=64, type=int)
+    parser.add_argument('--hyperpara_search', default=False, action='store_true')
 
     args = parser.parse_args()
 
-    # args.root_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/S3DIS/indoor3d_sem_seg_hdf5_data'
-    # args.model_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/3d_datasets/S3DIS/indoor3d_sem_seg_hdf5_data'
+    args.root_dir = '/home/wangh0j/data/sfc/S3DIS/raw'
+    args.model_dir = '/home/wangh0j/SFC-Convs/log/'
 
     dataset = S3DIS(args)
     dataloaders = dataset.get_dataloaders()

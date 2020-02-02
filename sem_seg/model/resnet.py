@@ -155,7 +155,7 @@ class ResNet(nn.Module):
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
 
-        self.maxpool = nn.MaxPool2d(kernel_size=k, stride=2, padding=k//2)
+        self.maxpool = nn.MaxPool2d(kernel_size=5, stride=2, padding=5//2)
         self.sigma *= 4
 
         self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
