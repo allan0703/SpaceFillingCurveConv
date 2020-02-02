@@ -38,11 +38,13 @@ class Decoder(nn.Module):
         else:
             raise NotImplementedError
 
-        self.conv1 = nn.Conv2d(low_level_inplanes, 48, 1, bias=False)
-        self.bn1 = nn.BatchNorm2d(48)
+        # 48
+        emd_channels = 256
+        self.conv1 = nn.Conv2d(low_level_inplanes, emd_channels, 1, bias=False)
+        self.bn1 = nn.BatchNorm2d(emd_channels)
         self.relu = nn.ReLU()
 
-        self.last_conv1 = DecoderConv(304, 256, kernel_size=kernel_size, drop=0.5, sigma=sigma)
+        self.last_conv1 = DecoderConv(256+emd_channels, 256, kernel_size=kernel_size, drop=0.5, sigma=sigma)
         self.last_conv2 = DecoderConv(256, 256, kernel_size=kernel_size, drop=0.1, sigma=sigma)
 
         self.conv_out = nn.Conv2d(256, num_classes, kernel_size=1, stride=1)
@@ -51,11 +53,11 @@ class Decoder(nn.Module):
     def forward(self, x, low_level_feat, coords):
         low_level_feat = self.conv1(low_level_feat)
         low_level_feat = self.bn1(low_level_feat)
-        low_level_feat = self.relu(low_level_feat)
+        # low_level_feat = self.relu(low_level_feat)
 
         x = F.interpolate(x, size=low_level_feat.size()[2:4], mode='bicubic', align_corners=True)
-        # x = torch.cat((x+low_level_feat, low_level_feat), dim=1)
-        x = torch.cat((x, low_level_feat), dim=1)
+        x = torch.cat((x+low_level_feat, low_level_feat), dim=1)
+        # x = torch.cat((x, low_level_feat), dim=1)
         x = self.last_conv1(x, coords)
         x = self.last_conv2(x, coords)
         x = self.conv_out(x)

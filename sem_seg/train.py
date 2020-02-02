@@ -244,7 +244,7 @@ if __name__ == '__main__':
                         help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str,
                         help='logging level')
-    parser.add_argument('--width', default=64, type=int)
+    parser.add_argument('--width', default=32, type=int)
     parser.add_argument('--hyperpara_search', default=False, action='store_true')
 
     args = parser.parse_args()
