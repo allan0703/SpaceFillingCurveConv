@@ -319,7 +319,8 @@ class ASPP_module(nn.Module):
 
 
 class DeepLabv3_plus_xception(nn.Module):
-    def __init__(self, nInputChannels=3, n_classes=21, os=8, pretrained=True, freeze_bn=False, _print=True):
+    def __init__(self, nInputChannels=3, n_classes=21, os=8, pretrained=True, freeze_bn=False, _print=True,
+                 drop_out=True, p=0.2):
         if _print:
             print("Constructing DeepLabv3+ model...")
             print("Backbone: Xception")
@@ -361,13 +362,26 @@ class DeepLabv3_plus_xception(nn.Module):
         self.conv3 = nn.Conv2d(304, 256, 1, bias=False)
         self.bn3 = BatchNorm2d(256)
 
-        self.last_conv = nn.Sequential(nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
-                                       BatchNorm2d(256),
-                                       nn.ReLU(),
-                                       nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
-                                       BatchNorm2d(256),
-                                       nn.ReLU(),
-                                       nn.Conv2d(256, n_classes, kernel_size=1, stride=1))
+        # GC: no stride any more
+        # GC: add drop out
+        if drop_out:
+            self.last_conv = nn.Sequential(nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+                                           BatchNorm2d(256),
+                                           nn.ReLU(),
+                                           nn.Dropout2d(p=p),
+                                           nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+                                           BatchNorm2d(256),
+                                           nn.ReLU(),
+                                           nn.Dropout2d(p=p),
+                                           nn.Conv2d(256, n_classes, kernel_size=1, stride=1))
+        else:
+            self.last_conv = nn.Sequential(nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+                                           BatchNorm2d(256),
+                                           nn.ReLU(),
+                                           nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+                                           BatchNorm2d(256),
+                                           nn.ReLU(),
+                                           nn.Conv2d(256, n_classes, kernel_size=1, stride=1))
         if freeze_bn:
             self._freeze_bn()
 
