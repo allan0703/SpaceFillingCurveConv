@@ -15,6 +15,7 @@ def fixed_padding(inputs, kernel_size, dilation):
     return padded_inputs
 
 
+
 class SeparableConv2d(nn.Module):
     def __init__(self, inplanes, planes, kernel_size=3, stride=1, dilation=1, bias=False, BatchNorm=None):
         super(SeparableConv2d, self).__init__()
