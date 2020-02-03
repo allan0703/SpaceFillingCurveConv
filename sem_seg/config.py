@@ -11,10 +11,11 @@ class S3DISConfig:
 
     # Hyperparameters for training:
     test_area = 5  # np.random.choice([1, 2, 3, 4, 5, 6])
-    kernel_size = np.random.choice([3, 5, 9, 15])
+    # kernel_size = np.random.choice([3, 5, 9, 15])
+    kernel_size = 15
     num_feats = 4  # np.random.choice([4, 9])  # np.random.choice([4, 5, 9])
-    lr = 1e-3  # lr = np.random.choice([1e-3, 1e-4])
-    batch_size = int(np.random.choice([8, 16, 32]))
+    lr = 1e-4  # lr = np.random.choice([1e-3, 1e-4])
+    batch_size = 16  # int(np.random.choice([8, 16, 32]))
     sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
     augment = True  # np.random.choice([True, False])
     bias = False  # np.random.choice([True, False])
