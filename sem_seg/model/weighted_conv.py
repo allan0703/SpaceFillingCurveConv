@@ -38,17 +38,28 @@ class WeightedConv(nn.Module):
         return out
 
 
-class WeightedConv1D(WeightedConv):
-    def __init__(self, in_channels, out_channels, kernel_size, dilation=1, padding=0, stride=1):
-        super(WeightedConv1D, self).__init__(in_channels, out_channels, (kernel_size, 1),
-                                             (dilation, 1), (padding, 0), (stride, 1))
+# class WeightedConv1D(WeightedConv):
+#     def __init__(self, in_channels, out_channels, kernel_size, dilation=1, padding=0, stride=1):
+#         super(WeightedConv1D, self).__init__(in_channels, out_channels, (kernel_size, 1),
+#                                              (dilation, 1), (padding, 0), (stride, 1))
+#
+#     def forward(self, x, coords=None, sigma=0.08):
+#         if coords is not None:
+#             coords = coords.unsqueeze(-1)
+#         out = super().forward(x.unsqueeze(-1), coords, sigma)
+#
+#         return out.squeeze(-1)
 
-    def forward(self, x, coords=None, sigma=0.08):
-        if coords is not None:
-            coords = coords.unsqueeze(-1)
-        out = super().forward(x.unsqueeze(-1), coords, sigma)
 
-        return out.squeeze(-1)
+class WeightedConv1D(nn.Module):
+    def __init__(self, in_planes, out_planes, stride=1, k=9, groups=1, dilation=1):
+        super(WeightedConv1D, self).__init__()
+        padding = k // 2
+        self.body = nn.Conv1d(in_planes, out_planes, kernel_size=k, stride=stride,
+                         padding=dilation * padding, groups=groups, bias=False, dilation=dilation)
+
+    def forward(self, x, coords=None, sigma=None):
+        return self.body(x)
 
 
 class SeparableWeightedConv1D(nn.Module):
