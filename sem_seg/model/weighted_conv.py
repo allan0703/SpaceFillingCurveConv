@@ -50,13 +50,13 @@ class WeightedConv(nn.Module):
 #
 #         return out.squeeze(-1)
 
-
 class WeightedConv1D(nn.Module):
-    def __init__(self, in_planes, out_planes, stride=1, k=9, groups=1, dilation=1):
+    def __init__(self, in_planes, out_planes, kernel_size=9, groups=1, padding=None, dilation=1, stride=1):
         super(WeightedConv1D, self).__init__()
-        padding = k // 2
-        self.body = nn.Conv1d(in_planes, out_planes, kernel_size=k, stride=stride,
-                         padding=dilation * padding, groups=groups, bias=False, dilation=dilation)
+        if padding is None:
+            padding = kernel_size // 2
+        self.body = nn.Conv1d(in_planes, out_planes, kernel_size=kernel_size, stride=stride,
+                              padding=padding, groups=groups, bias=False, dilation=dilation)
 
     def forward(self, x, coords=None, sigma=None):
         return self.body(x)
