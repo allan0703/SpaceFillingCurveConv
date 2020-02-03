@@ -11,7 +11,8 @@ import pathlib
 
 from torch.utils.data import Dataset, DataLoader
 from hilbertcurve.hilbertcurve import HilbertCurve
-
+import torch
+import random
 from config import S3DISConfig
 
 
@@ -217,11 +218,15 @@ class S3DIS:
         if args.bias is not None:
             config.bias = args.bias
 
+        if args.seed is not None:
+            config.random_seed = args.seed
+
         if args.hyperpara_search:
             # config.kernel_size = int(np.random.choice([3, 5, 9]))
             # config.kernel_size = int(1)
-            config.num_feats = np.random.choice([4, 5, 9])  # 4  # np.random.choice([4, 9])
-            config.lr = np.random.choice([1e-3, 1e-4, 1e-5])
+            config.random_seed = np.random.randint(0, 1000, 1)[0]
+            # config.num_feats = np.random.choice([4, 5, 9])  # 4  # np.random.choice([4, 9])
+            # config.lr = np.random.choice([1e-3, 1e-4, 1e-5])
             #config.sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
 
         # config.height = args.height
@@ -231,7 +236,7 @@ class S3DIS:
         config.root_dir = args.root_dir
         config.model_dir = args.model_dir
 
-
+        set_seed(config.random_seed)
         return config
 
     def _generate_experiment_directory(self):
@@ -242,11 +247,12 @@ class S3DIS:
             Y-m-d_H:M_prefixStr_lr_batchSize_modelName_augmentation_numEpochs__UUID
         """
         timestamp = time.strftime('%Y-%m-%d-%H-%M-%S')
-        experiment_string = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}__{}' \
-            .format(timestamp, self.config.dataset, self.config.test_area, self.config.num_feats, self.config.lr,
-                    self.config.batch_size,  self.config.model,
+        experiment_string = '{}_{}_A{}_M{}_C{}_lr{}_B{}_W{}_{}_{}_N{}_Seed{}_{}' \
+            .format(timestamp, self.config.dataset, self.config.test_area, self.config.model,
+                    self.config.num_feats, self.config.lr,
+                    self.config.batch_size,  self.config.width,
                     'augment' if self.config.augment else 'no-augment',
-                    'bias' if self.config.bias else 'no-bias', self.config.max_epochs, uuid.uuid4())
+                    'bias' if self.config.bias else 'no-bias', self.config.max_epochs, self.config.random_seed, uuid.uuid4())
 
         # experiment_dir = os.path.join(os.path.curdir, experiment_string)
         experiment_dir = os.path.join(self.config.model_dir, experiment_string)
@@ -328,6 +334,16 @@ class S3DIS:
                        for x in ['train', 'test']}
 
         return dataloaders
+
+
+def set_seed(seed=0):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 if __name__ == '__main__':

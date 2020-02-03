@@ -36,7 +36,9 @@ class SeparableConv2d_same(nn.Module):
         super(SeparableConv2d_same, self).__init__()
 
         # GC: padding by ourself, 0 -> k//2
-        self.conv1 = nn.Conv2d(inplanes, inplanes, kernel_size, stride, kernel_size//2, dilation,
+        padding = dilation*(kernel_size//2)
+
+        self.conv1 = nn.Conv2d(inplanes, inplanes, kernel_size, stride, padding, dilation,
                                groups=inplanes, bias=bias)
         self.pointwise = nn.Conv2d(inplanes, planes, 1, 1, 0, 1, 1, bias=bias)
 
@@ -116,9 +118,9 @@ class Xception(nn.Module):
         #     middle_block_dilation = 1
         #     exit_block_dilations = (1, 2)
         # elif os == 8:
-        entry_block3_stride = 2
-        middle_block_dilation = 1  # GC: dilation = 1
-        exit_block_strides = [1, 2]
+        entry_block3_stride = 1
+        middle_block_dilation = 2  # GC: dilation = 1
+        exit_block_strides = [1, 1]
         exit_block_dilations = (1, 1)  # GC: d(2, 4) -> 1
         # else:
         #     raise NotImplementedError
@@ -383,8 +385,8 @@ class DeepLabv3_plus_xception(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
-        x = F.interpolate(x, size=(int(math.ceil(input.size()[-2] / 2)),
-                                   int(math.ceil(input.size()[-1] / 2))), mode='bilinear', align_corners=True)
+        # x = F.interpolate(x, size=(int(math.ceil(input.size()[-2] / 2)),
+        #                            int(math.ceil(input.size()[-1] / 2))), mode='bilinear', align_corners=True)
 
         low_level_features = self.conv2(low_level_features)
         low_level_features = self.bn2(low_level_features)
@@ -392,7 +394,7 @@ class DeepLabv3_plus_xception(nn.Module):
 
         x = torch.cat((x, low_level_features), dim=1)
         x = self.relu(self.bn3(self.conv3(x)))
-        x = F.interpolate(x, size=input.size()[2:], mode='bilinear', align_corners=True)
+        # x = F.interpolate(x, size=input.size()[2:], mode='bilinear', align_corners=True)
         x = self.last_conv(x)
         return x
 
