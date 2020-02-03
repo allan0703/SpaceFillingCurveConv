@@ -219,10 +219,10 @@ class S3DIS:
 
         if args.hyperpara_search:
             # config.kernel_size = int(np.random.choice([3, 5, 9]))
-            config.kernel_size = int(1)
+            #config.kernel_size = int(1)
             config.num_feats = np.random.choice([4, 5, 9])  # 4  # np.random.choice([4, 9])
             config.lr = np.random.choice([1e-3, 1e-4])
-            config.sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
+            #config.sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
 
         # config.height = args.height
         config.width = args.width
@@ -242,9 +242,9 @@ class S3DIS:
             Y-m-d_H:M_prefixStr_lr_batchSize_modelName_augmentation_numEpochs__UUID
         """
         timestamp = time.strftime('%Y-%m-%d-%H-%M-%S')
-        experiment_string = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}__{}' \
+        experiment_string = '{}_{}_{}_{}_{}_{}_{}_{}_{}_{}_{}__{}' \
             .format(timestamp, self.config.dataset, self.config.test_area, self.config.num_feats, self.config.lr,
-                    self.config.batch_size, self.config.kernel_size, self.config.sigma,  self.config.model,
+                    self.config.batch_size,  self.config.model,
                     self.config.backbone, 'augment' if self.config.augment else 'no-augment',
                     'bias' if self.config.bias else 'no-bias', self.config.max_epochs, uuid.uuid4())
 

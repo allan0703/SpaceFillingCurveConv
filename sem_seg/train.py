@@ -8,7 +8,7 @@ import torch.nn as nn
 
 from tqdm import tqdm
 
-from model.deeplab import deeplab
+from model.deeplab_resnet import DeepLabv3_plus
 from model.unet import unet
 from S3DIS import S3DIS
 
@@ -48,9 +48,7 @@ def train(dataset, model_dir, writer):
         model = unet(input_size=dataset.config.num_feats, num_classes=dataset.config.num_classes,
                      kernel_size=dataset.config.kernel_size).to(device)
     else:
-        model = deeplab(backbone=dataset.config.backbone, input_size=dataset.config.num_feats,
-                        num_classes=dataset.config.num_classes, kernel_size=dataset.config.kernel_size,
-                        sigma=1.5).to(device)
+        model = DeepLabv3_plus(nInputChannels=dataset.config.num_feats, n_classes=dataset.config.num_classes).to(device)
 
     # if use multi_gou then convert the model to DataParallel
     if dataset.config.multi_gpu:
@@ -108,12 +106,12 @@ def train(dataset, model_dir, writer):
                                                       desc='[{}/{}] {} '.format(epoch + 1, dataset.config.max_epochs,
                                                                                 phase))):
                 data = inputs[0].to(device, dtype=torch.float)  # b*num_feats*64*64
-                coords = inputs[1].to(device, dtype=torch.float)  # b*3*64*64
+                #  coords = inputs[1].to(device, dtype=torch.float)  # b*3*64*64
                 label = inputs[2].to(device, dtype=torch.long)  # b*64*64
                 # todo: data and coords not consistent
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
-                    out = model(data, coords) #b*13*64*64
+                    out = model(data) #b*13*64*64
                     loss = criterion(out, label)
                     # loss1 = criterion(out.reshape(out.shape[0], out.shape[1], -1), label.reshape(label.shape[0],-1))
                     if phase == 'train':
@@ -222,7 +220,7 @@ if __name__ == '__main__':
                         help='use multiple GPUs (all available)')
     parser.add_argument('--gpu', default=0, type=int,
                         help='index of GPU to use (0-indexed); if multi_gpu then value is ignored')
-    parser.add_argument('--model', default=None, type=str,
+    parser.add_argument('--model', default='DeepLabv3plus', type=str,
                         help='either deeplab or unet')
     parser.add_argument('--backbone', default=None, type=str,
                         help='backbone to use for deeplab (xception, resnet101, resnet18')
@@ -244,7 +242,7 @@ if __name__ == '__main__':
                         help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str,
                         help='logging level')
-    parser.add_argument('--width', default=32, type=int)
+    parser.add_argument('--width', default=64, type=int)
     parser.add_argument('--hyperpara_search', default=False, action='store_true')
 
     args = parser.parse_args()
