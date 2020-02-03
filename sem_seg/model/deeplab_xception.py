@@ -3,9 +3,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
-from modeling.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
+#from modeling.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
 
-BatchNorm2d = SynchronizedBatchNorm2d
+BatchNorm2d = nn.BatchNorm2d
 
 
 class SeparableConv2d(nn.Module):
@@ -35,12 +35,14 @@ class SeparableConv2d_same(nn.Module):
     def __init__(self, inplanes, planes, kernel_size=3, stride=1, dilation=1, bias=False):
         super(SeparableConv2d_same, self).__init__()
 
-        self.conv1 = nn.Conv2d(inplanes, inplanes, kernel_size, stride, 0, dilation,
+        # GC: padding by ourself, 0 -> k//2
+        self.conv1 = nn.Conv2d(inplanes, inplanes, kernel_size, stride, kernel_size//2, dilation,
                                groups=inplanes, bias=bias)
         self.pointwise = nn.Conv2d(inplanes, planes, 1, 1, 0, 1, 1, bias=bias)
 
     def forward(self, x):
-        x = fixed_padding(x, self.conv1.kernel_size[0], dilation=self.conv1.dilation[0])
+        # GC: padding by ourself
+        # x = fixed_padding(x, self.conv1.kernel_size[0], dilation=self.conv1.dilation[0])
         x = self.conv1(x)
         x = self.pointwise(x)
         return x
@@ -48,7 +50,7 @@ class SeparableConv2d_same(nn.Module):
 
 class Block(nn.Module):
     def __init__(self, inplanes, planes, reps, stride=1, dilation=1, start_with_relu=True, grow_first=True,
-                 is_last=False):
+                 is_last=False, k=3):
         super(Block, self).__init__()
 
         if planes != inplanes or stride != 1:
@@ -63,28 +65,28 @@ class Block(nn.Module):
         filters = inplanes
         if grow_first:
             rep.append(self.relu)
-            rep.append(SeparableConv2d_same(inplanes, planes, 3, stride=1, dilation=dilation))
+            rep.append(SeparableConv2d_same(inplanes, planes, k, stride=1, dilation=dilation))
             rep.append(BatchNorm2d(planes))
             filters = planes
 
         for i in range(reps - 1):
             rep.append(self.relu)
-            rep.append(SeparableConv2d_same(filters, filters, 3, stride=1, dilation=dilation))
+            rep.append(SeparableConv2d_same(filters, filters, k, stride=1, dilation=dilation))
             rep.append(BatchNorm2d(filters))
 
         if not grow_first:
             rep.append(self.relu)
-            rep.append(SeparableConv2d_same(inplanes, planes, 3, stride=1, dilation=dilation))
+            rep.append(SeparableConv2d_same(inplanes, planes, k, stride=1, dilation=dilation))
             rep.append(BatchNorm2d(planes))
 
         if not start_with_relu:
             rep = rep[1:]
 
         if stride != 1:
-            rep.append(SeparableConv2d_same(planes, planes, 3, stride=2))
+            rep.append(SeparableConv2d_same(planes, planes, k, stride=2))
 
         if stride == 1 and is_last:
-            rep.append(SeparableConv2d_same(planes, planes, 3, stride=1))
+            rep.append(SeparableConv2d_same(planes, planes, k, stride=1))
 
         self.rep = nn.Sequential(*rep)
 
@@ -107,30 +109,32 @@ class Xception(nn.Module):
     Modified Alighed Xception
     """
 
-    def __init__(self, inplanes=3, os=16, pretrained=False):
+    def __init__(self, inplanes=3, os=8, pretrained=False):
         super(Xception, self).__init__()
-
-        if os == 16:
-            entry_block3_stride = 2
-            middle_block_dilation = 1
-            exit_block_dilations = (1, 2)
-        elif os == 8:
-            entry_block3_stride = 1
-            middle_block_dilation = 2
-            exit_block_dilations = (2, 4)
-        else:
-            raise NotImplementedError
+        # if os == 16:
+        #     entry_block3_stride = 2
+        #     middle_block_dilation = 1
+        #     exit_block_dilations = (1, 2)
+        # elif os == 8:
+        entry_block3_stride = 2
+        middle_block_dilation = 1  # GC: dilation = 1
+        exit_block_strides = [1, 2]
+        exit_block_dilations = (1, 1)  # GC: d(2, 4) -> 1
+        # else:
+        #     raise NotImplementedError
 
         # Entry flow
-        self.conv1 = nn.Conv2d(inplanes, 32, 3, stride=2, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(inplanes, 32, 1, stride=1, padding=0, bias=False)  # GC: stride to 1, point wise
         self.bn1 = BatchNorm2d(32)
         self.relu = nn.ReLU(inplace=True)
 
-        self.conv2 = nn.Conv2d(32, 64, 3, stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(32, 64, 1, stride=1, padding=0, bias=False)  # GC: stride to 1, point wise
         self.bn2 = BatchNorm2d(64)
 
-        self.block1 = Block(64, 128, reps=2, stride=2, start_with_relu=False)
-        self.block2 = Block(128, 256, reps=2, stride=2, start_with_relu=True, grow_first=True)
+        self.block1 = Block(64, 128, reps=2, stride=1, start_with_relu=False, k=1)  # GC: stride to 1
+
+        # above is all point wise conv
+        self.block2 = Block(128, 256, reps=2, stride=1, start_with_relu=True, grow_first=True)  # GC: stride to 1
         self.block3 = Block(256, 728, reps=2, stride=entry_block3_stride, start_with_relu=True, grow_first=True,
                             is_last=True)
 
@@ -169,16 +173,16 @@ class Xception(nn.Module):
                              grow_first=True)
 
         # Exit flow
-        self.block20 = Block(728, 1024, reps=2, stride=1, dilation=exit_block_dilations[0],
+        self.block20 = Block(728, 1024, reps=2, stride=exit_block_strides[0], dilation=exit_block_dilations[0],
                              start_with_relu=True, grow_first=False, is_last=True)
 
-        self.conv3 = SeparableConv2d_same(1024, 1536, 3, stride=1, dilation=exit_block_dilations[1])
+        self.conv3 = SeparableConv2d_same(1024, 1536, 3, stride=exit_block_strides[1], dilation=exit_block_dilations[1])
         self.bn3 = BatchNorm2d(1536)
 
-        self.conv4 = SeparableConv2d_same(1536, 1536, 3, stride=1, dilation=exit_block_dilations[1])
+        self.conv4 = SeparableConv2d_same(1536, 1536, 3, stride=1, dilation=1)
         self.bn4 = BatchNorm2d(1536)
 
-        self.conv5 = SeparableConv2d_same(1536, 2048, 3, stride=1, dilation=exit_block_dilations[1])
+        self.conv5 = SeparableConv2d_same(1536, 2048, 3, stride=1, dilation=1)
         self.bn5 = BatchNorm2d(2048)
 
         # Init weights
@@ -199,9 +203,9 @@ class Xception(nn.Module):
         x = self.relu(x)
 
         x = self.block1(x)
-        low_level_feat = x
         x = self.block2(x)
         x = self.block3(x)
+        low_level_feat = x
 
         # Middle flow
         x = self.block4(x)
@@ -312,15 +316,15 @@ class ASPP_module(nn.Module):
                 m.bias.data.zero_()
 
 
-class DeepLabv3_plus(nn.Module):
-    def __init__(self, nInputChannels=3, n_classes=21, os=16, pretrained=False, freeze_bn=False, _print=True):
+class DeepLabv3_plus_xception(nn.Module):
+    def __init__(self, nInputChannels=3, n_classes=21, os=8, pretrained=True, freeze_bn=False, _print=True):
         if _print:
             print("Constructing DeepLabv3+ model...")
             print("Backbone: Xception")
             print("Number of classes: {}".format(n_classes))
             print("Output stride: {}".format(os))
             print("Number of Input Channels: {}".format(nInputChannels))
-        super(DeepLabv3_plus, self).__init__()
+        super(DeepLabv3_plus_xception, self).__init__()
 
         # Atrous Conv
         self.xception_features = Xception(nInputChannels, os, pretrained)
@@ -329,7 +333,7 @@ class DeepLabv3_plus(nn.Module):
         if os == 16:
             dilations = [1, 6, 12, 18]
         elif os == 8:
-            dilations = [1, 12, 24, 36]
+            dilations = [1, 1, 2, 2]  # GC: change dilation
         else:
             raise NotImplementedError
 
@@ -349,10 +353,13 @@ class DeepLabv3_plus(nn.Module):
         self.bn1 = BatchNorm2d(256)
 
         # adopt [1x1, 48] for channel reduction.
-        self.conv2 = nn.Conv2d(128, 48, 1, bias=False)
+        self.conv2 = nn.Conv2d(728, 48, 1, bias=False)
         self.bn2 = BatchNorm2d(48)
 
-        self.last_conv = nn.Sequential(nn.Conv2d(304, 256, kernel_size=3, stride=1, padding=1, bias=False),
+        self.conv3 = nn.Conv2d(304, 256, 1, bias=False)
+        self.bn3 = BatchNorm2d(256)
+
+        self.last_conv = nn.Sequential(nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
                                        BatchNorm2d(256),
                                        nn.ReLU(),
                                        nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
@@ -376,17 +383,17 @@ class DeepLabv3_plus(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
-        x = F.interpolate(x, size=(int(math.ceil(input.size()[-2] / 4)),
-                                   int(math.ceil(input.size()[-1] / 4))), mode='bilinear', align_corners=True)
+        x = F.interpolate(x, size=(int(math.ceil(input.size()[-2] / 2)),
+                                   int(math.ceil(input.size()[-1] / 2))), mode='bilinear', align_corners=True)
 
         low_level_features = self.conv2(low_level_features)
         low_level_features = self.bn2(low_level_features)
         low_level_features = self.relu(low_level_features)
 
         x = torch.cat((x, low_level_features), dim=1)
-        x = self.last_conv(x)
+        x = self.relu(self.bn3(self.conv3(x)))
         x = F.interpolate(x, size=input.size()[2:], mode='bilinear', align_corners=True)
-
+        x = self.last_conv(x)
         return x
 
     def _freeze_bn(self):
@@ -431,9 +438,9 @@ def get_10x_lr_params(model):
 
 
 if __name__ == "__main__":
-    model = DeepLabv3_plus(nInputChannels=3, n_classes=21, os=16, pretrained=True, _print=True)
+    model = DeepLabv3_plus_xception(nInputChannels=9, n_classes=21, os=8, pretrained=True, _print=True)
     model.eval()
-    image = torch.randn(1, 3, 512, 512)
+    image = torch.randn(2, 9, 64, 64)
     with torch.no_grad():
         output = model.forward(image)
     print(output.size())

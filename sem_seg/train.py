@@ -8,7 +8,8 @@ import torch.nn as nn
 
 from tqdm import tqdm
 
-from model.deeplab_resnet import DeepLabv3_plus
+from model.deeplab_resnet import DeepLabv3_plus_resnet
+from model.deeplab_xception import DeepLabv3_plus_xception
 from model.unet import unet
 from S3DIS import S3DIS
 
@@ -47,8 +48,10 @@ def train(dataset, model_dir, writer):
     if dataset.config.model == 'unet':
         model = unet(input_size=dataset.config.num_feats, num_classes=dataset.config.num_classes,
                      kernel_size=dataset.config.kernel_size).to(device)
-    else:
-        model = DeepLabv3_plus(nInputChannels=dataset.config.num_feats, n_classes=dataset.config.num_classes).to(device)
+    elif dataset.config.model == 'DeepLabv3_plus_resnet':
+        model = DeepLabv3_plus_resnet(nInputChannels=dataset.config.num_feats, n_classes=dataset.config.num_classes).to(device)
+    elif dataset.config.model == 'DeepLabv3_plus_xception':
+        model = DeepLabv3_plus_xception(nInputChannels=dataset.config.num_feats, n_classes=dataset.config.num_classes).to(device)
 
     # if use multi_gou then convert the model to DataParallel
     if dataset.config.multi_gpu:
@@ -220,7 +223,7 @@ if __name__ == '__main__':
                         help='use multiple GPUs (all available)')
     parser.add_argument('--gpu', default=0, type=int,
                         help='index of GPU to use (0-indexed); if multi_gpu then value is ignored')
-    parser.add_argument('--model', default='DeepLabv3plus', type=str,
+    parser.add_argument('--model', default='DeepLabv3_plus_resnet', type=str,
                         help='either deeplab or unet')
     parser.add_argument('--backbone', default=None, type=str,
                         help='backbone to use for deeplab (xception, resnet101, resnet18')

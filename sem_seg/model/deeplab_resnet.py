@@ -3,9 +3,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
-from modeling.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
+#from modeling.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
 
-BatchNorm2d = SynchronizedBatchNorm2d
+BatchNorm2d = nn.BatchNorm2d
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -183,7 +183,7 @@ class ASPP_module(nn.Module):
                 m.bias.data.zero_()
 
 
-class DeepLabv3_plus(nn.Module):
+class DeepLabv3_plus_resnet(nn.Module):
     def __init__(self, nInputChannels=3, n_classes=21, os=16, pretrained=False, freeze_bn=False, _print=True):
         if _print:
             print("Constructing DeepLabv3+ model...")
@@ -191,7 +191,7 @@ class DeepLabv3_plus(nn.Module):
             print("Number of classes: {}".format(n_classes))
             print("Output stride: {}".format(os))
             print("Number of Input Channels: {}".format(nInputChannels))
-        super(DeepLabv3_plus, self).__init__()
+        super(DeepLabv3_plus_resnet, self).__init__()
 
         # Atrous Conv
         self.resnet_features = ResNet101(nInputChannels, os, pretrained=pretrained)
