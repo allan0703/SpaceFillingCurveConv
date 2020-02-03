@@ -1,0 +1,43 @@
+# -----------------------------------#
+#      Configuration Parameters      #
+# -----------------------------------#
+
+# Dataset and Model
+# -----------------------------------#
+
+dataset = S3DIS
+model = deeplab
+backbone = resnet101
+num_classes = 13
+
+# Training hyperparameters
+# -----------------------------------#
+
+test_area = 5
+kernel_size = 5
+num_feats = 5
+lr = 1.00e-03
+batch_size = 32
+sigma = 0.100000
+augment = True
+bias = False
+
+# Training setup
+# -----------------------------------#
+
+min_epochs = 100
+max_epochs = 300
+lr_decay = 0.900000
+lr_patience = 1.000000
+early_stopping = 5
+# GPUs
+# -----------------------------------#
+
+gpu_index = 0
+multi_gpu = False
+
+# Paths to data and checkpoints
+# -----------------------------------#
+
+root_dir = 
+model_dir = 
