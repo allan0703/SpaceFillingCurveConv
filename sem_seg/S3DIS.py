@@ -218,8 +218,8 @@ class S3DIS:
         if args.bias is not None:
             config.bias = args.bias
 
-        if args.seed is not None:
-            config.random_seed = args.seed
+        if args.random_seed is not None:
+            config.random_seed = args.random_seed
 
         if args.hyperpara_search:
             # config.kernel_size = int(np.random.choice([3, 5, 9]))
