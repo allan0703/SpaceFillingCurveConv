@@ -239,7 +239,7 @@ if __name__ == '__main__':
                         help='whether to augment training data')
     parser.add_argument('--bias', default=False, action='store_true',
                         help='use bias in convolutions')
-    parser.add_argument('--random_seed', default=None, type=int,
+    parser.add_argument('--random_seed', default=1, type=int,
                         help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str,
                         help='logging level')

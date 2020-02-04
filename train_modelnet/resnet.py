@@ -1,16 +1,63 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import logging
+import time
 
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']
 
 
-def convKxK(in_planes, out_planes, stride=1, k=9, groups=1, dilation=1):
-    """3x3 convolution with padding"""
+class WeightedConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride):
+        super(WeightedConv, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
+        self.kernel_size = kernel_size
+        self.dilation = dilation
+        self.padding = padding
+        self.stride = stride
+
+        self.weight = nn.Parameter(torch.Tensor(self.out_channels, self.in_channels, self.kernel_size[0]))
+
+    def forward(self, x, coords, sigma):
+        windows = F.unfold(x, kernel_size=self.kernel_size, padding=self.padding,
+                           dilation=self.dilation, stride=self.stride)
+        dist_weights = F.unfold(coords, kernel_size=self.kernel_size, padding=self.padding,
+                                dilation=self.dilation, stride=self.stride)
+
+        dist_weights = dist_weights.view(x.shape[0], 3, self.kernel_size[0], -1)
+        dist_weights = dist_weights - dist_weights[:, :, self.kernel_size[0] // 2, :].unsqueeze(-2)
+        dist_weights = 1 - torch.sqrt(torch.sum(dist_weights ** 2, dim=1)) / sigma
+        dist_weights[dist_weights < 0] = 0.0
+        dist_weights = dist_weights.repeat(1, self.in_channels, 1)
+
+        windows = windows * dist_weights
+
+        out = windows.transpose(1, 2).matmul(self.weight.view(self.weight.size(0), -1).t()).transpose(1, 2)
+
+        return out
+
+
+class WeightedConv1D(WeightedConv):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation=1, padding=0, stride=1):
+        super(WeightedConv1D, self).__init__(in_channels, out_channels, (kernel_size, 1),
+                                             (dilation, 1), (padding, 0), (stride, 1))
+
+    def forward(self, x, coords=None, sigma=0.08):
+        if coords is not None:
+            coords = coords.unsqueeze(-1)
+        out = super().forward(x.unsqueeze(-1), coords, sigma)
+
+        return out.squeeze(-1)
+
+
+def convKxK(in_planes, out_planes, stride=1, k=9, dilation=1):
+    """Kx1 weighted convolution"""
     padding = k // 2
-    return nn.Conv1d(in_planes, out_planes, kernel_size=k, stride=stride,
-                     padding=dilation * padding, groups=groups, bias=False, dilation=dilation)
+
+    return WeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation, padding=padding, stride=stride)
 
 
 def conv1x1(in_planes, out_planes, stride=1):
@@ -22,13 +69,14 @@ class BasicBlock(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, k=9, downsample=None, groups=1,
-                 base_width=64, dilation=1):
+                 base_width=64, dilation=1, sigma=1.0):
         super(BasicBlock, self).__init__()
         if groups != 1 or base_width != 64:
             raise ValueError('BasicBlock only supports groups=1 and base_width=64')
         if dilation > 1:
             raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
         norm_layer = nn.BatchNorm1d
+        self.sigma = sigma
 
         self.conv1 = convKxK(inplanes, planes, stride=stride, k=k)
         self.bn1 = norm_layer(planes)
@@ -38,14 +86,19 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x):
+    def forward(self, inputs):
+        x, coords = inputs
+
         identity = x
 
-        out = self.conv1(x)
+        out = self.conv1(x, coords, self.sigma)
+        coords = coords[:, :, ::self.stride]
+
+        #
         out = self.bn1(out)
         out = self.relu(out)
 
-        out = self.conv2(out)
+        out = self.conv2(out, coords, self.sigma * self.stride)
         out = self.bn2(out)
 
         if self.downsample is not None:
@@ -54,23 +107,24 @@ class BasicBlock(nn.Module):
         out += identity
         out = self.relu(out)
 
-        return out
+        return out, coords
 
 
 class Bottleneck(nn.Module):
     expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, k=9, downsample=None, groups=1,
-                 base_width=64, dilation=1):
+                 base_width=64, dilation=1, sigma=1.0):
         super(Bottleneck, self).__init__()
 
+        self.sigma = sigma
         norm_layer = nn.BatchNorm1d
 
         width = int(planes * (base_width / 64.)) * groups
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv1x1(inplanes, width)
         self.bn1 = norm_layer(width)
-        self.conv2 = convKxK(width, width, stride, k, groups, dilation)
+        self.conv2 = convKxK(width, width, stride, k, dilation)
         self.bn2 = norm_layer(width)
         self.conv3 = conv1x1(width, planes * self.expansion)
         self.bn3 = norm_layer(planes * self.expansion)
@@ -78,14 +132,18 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x):
+    def forward(self, inputs):
+        x, coords = inputs
+
         identity = x
 
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
 
-        out = self.conv2(out)
+        out = self.conv2(out, coords, self.sigma)
+        coords = coords[:, :, ::self.stride]
+
         out = self.bn2(out)
         out = self.relu(out)
 
@@ -98,12 +156,12 @@ class Bottleneck(nn.Module):
         out += identity
         out = self.relu(out)
 
-        return out
+        return out, coords
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, k, in_channels=3, num_classes=40, zero_init_residual=False,
-                 groups=1, width_per_group=64, replace_stride_with_dilation=None):
+    def __init__(self, block, layers, k, input_size=3, num_classes=40, zero_init_residual=False,
+                 groups=1, width_per_group=64, replace_stride_with_dilation=None, sigma=1.0):
         super(ResNet, self).__init__()
 
         norm_layer = nn.BatchNorm1d
@@ -111,7 +169,8 @@ class ResNet(nn.Module):
 
         self.inplanes = 64
         self.dilation = 1
-        self.dropout = 0.5
+
+        self.sigma = sigma
 
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -122,30 +181,30 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        self.conv1 = nn.Conv1d(in_channels, self.inplanes, kernel_size=49, stride=2, padding=24,
-                               bias=False)
+        # self.conv1 = nn.Conv1d(input_size, self.inplanes, kernel_size=49, stride=2, padding=24,
+        #                        bias=False)
+        # self.conv1 = WeightedConv1D(input_size, self.inplanes, kernel_size=49, stride=2, padding=24)
+        self.conv1 = convKxK(input_size, self.inplanes, stride=2, k=49, dilation=1)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool1 = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
-        self.layer1 = self._make_layer(block, 64, layers[0], k=k)
+        self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
+        self.sigma *= 4
+        self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
-                                       dilate=replace_stride_with_dilation[0])
+                                       dilate=replace_stride_with_dilation[0], sigma=self.sigma)
+        self.sigma *= 2
         self.layer3 = self._make_layer(block, 256, layers[2], k=k, stride=2,
-                                       dilate=replace_stride_with_dilation[1])
+                                       dilate=replace_stride_with_dilation[1], sigma=self.sigma)
+        self.sigma *= 2
         self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=2,
-                                       dilate=replace_stride_with_dilation[2])
+                                       dilate=replace_stride_with_dilation[2], sigma=self.sigma)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.maxpool2 = nn.AdaptiveMaxPool1d(1)
-        # expand fc layers.
-        # self.fc = nn.Linear(512 * block.expansion * 2, num_classes)
-        self.fc = nn.Sequential(nn.Linear(512 * block.expansion * 2, 512), norm_layer(512), nn.ReLU(inplace=True),
-                                nn.Dropout(p=self.dropout),
-                                nn.Linear(512, 128), norm_layer(128), nn.ReLU(inplace=True),
-                                nn.Dropout(p=self.dropout),
-                                nn.Linear(128, num_classes))
+        self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, WeightedConv1D):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, (nn.BatchNorm1d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
@@ -162,7 +221,7 @@ class ResNet(nn.Module):
                 if isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
-    def _make_layer(self, block, planes, blocks, k=9, stride=1, dilate=False):
+    def _make_layer(self, block, planes, blocks, k=9, stride=1, dilate=False, sigma=1.0):
         norm_layer = self._norm_layer
         downsample = None
         previous_dilation = self.dilation
@@ -177,7 +236,7 @@ class ResNet(nn.Module):
 
         layers = []
         layers.append(block(self.inplanes, planes, stride, k, downsample, self.groups,
-                            self.base_width, previous_dilation))
+                            self.base_width, previous_dilation, sigma=sigma))
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
             layers.append(block(self.inplanes, planes, k=k, groups=self.groups,
@@ -185,32 +244,28 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x):
-        # logging.info('Size at input: {}'.format(x.size()))
-        x = self.conv1(x)
+    def forward(self, x, coords):
+        # print('Size at input: {}'.format(x.size()))
+        # x = self.conv1(x)
+        x = self.conv1(x, coords)
         x = self.bn1(x)
         x = self.relu(x)
-        # logging.info('Size after conv1: {}'.format(x.size()))
-        x = self.maxpool1(x)
-        # logging.info('Size after maxpool: {}'.format(x.size()))
+        # print('Size after conv1: {}'.format(x.size()))
+        x = self.maxpool(x)
+        # print('Size after maxpool: {}'.format(x.size()))
+        coords = coords[:, :, ::4]
+        x, coords = self.layer1((x, coords))
+        # print('Size after layer1: {}'.format(x.size()))
+        x, coords = self.layer2((x, coords))
+        # print('Size after layer2: {}'.format(x.size()))
+        x, coords = self.layer3((x, coords))
+        # print('Size after layer3: {}'.format(x.size()))
+        x, coords = self.layer4((x, coords))
+        # print('Size after layer4: {}'.format(x.size()))
 
-        x = self.layer1(x)
-        # logging.info('Size after layer1: {}'.format(x.size()))
-        x = self.layer2(x)
-        # logging.info('Size after layer2: {}'.format(x.size()))
-        x = self.layer3(x)
-        # logging.info('Size after layer3: {}'.format(x.size()))
-        x = self.layer4(x)
-        # logging.info('Size after layer4: {}'.format(x.size()))
-
-        avg_feat = self.avgpool(x)
-        # logging.info('Size after avgpool: {}'.format(x.size()))
-        # add max pooling
-        max_feat = self.maxpool2(x)
-        x = torch.cat((avg_feat, max_feat), dim=1)
-
+        x = self.avgpool(x)
+        # print('Size after average pool: {}'.format(x.size())
         x = torch.flatten(x, 1)
-        # logging.info('Size after flatten: {}'.format(x.size()))
         x = self.fc(x)
 
         return x
@@ -250,11 +305,18 @@ if __name__ == '__main__':
     logger = logging.getLogger()
     logger.setLevel(numeric_level)
 
-    x = torch.rand((4, 3, 1024), dtype=torch.float)
+    device = torch.device('cpu')
+
+    feats = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
+    coords = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
     k = 21
 
-    net = resnet101(kernel_size=k, in_channels=3, num_classes=40)
+    net = resnet18(kernel_size=k, input_size=3, num_classes=40).to(device)
 
-    out = net(x)
+    start_time = time.time()
+    out = net(feats, coords)
+    logging.info('It took {:f}s'.format(time.time() - start_time))
     # out = out.mean(dim=1)
     logging.info('Output size {}'.format(out.size()))
+
+    out.mean().backward()

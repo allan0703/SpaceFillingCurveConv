@@ -146,7 +146,7 @@ class ModelNet40(Dataset):
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :].astype(int))
         idx = np.argsort(hilbert_dist)
 
-        return pointcloud[idx, :], label
+        return pointcloud[idx, :], label, pointcloud[idx, :]
 
 
 def get_modelnet40_dataloaders(root_dir, phases, batch_size, augment=True):
@@ -188,8 +188,8 @@ if __name__ == '__main__':
     for phase in phases:
         print(phase.upper())
         print('\tDataset {} Dataloder {}'.format(len(datasets[phase]), len(dataloaders[phase])))
-        for i, (data, label) in enumerate(dataloaders[phase]):
-            print('\tData {} Label {}'.format(data.size(), label.size()))
+        for i, (data, label, coords) in enumerate(dataloaders[phase]):
+            print('\tData {} Label {} Coords {}'.format(data.shape, label.shape, coords.shape))
             if i >= 3:
                 break
 

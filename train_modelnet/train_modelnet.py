@@ -8,9 +8,15 @@ import torch.nn as nn
 
 from tqdm import tqdm
 
-import config as cfg
-from train_modelnet import dataset_modelnet as ds, resnet as res
+from dataset_modelnet import get_modelnet40_dataloaders
+from resnet import resnet18, resnet101
+from config_modelnet import generate_config
 
+# from train_modelnet import dataset_modelnet as ds, resnet as res, config_modelnet as cfg
+
+# append upper directory to import utils.py and metrics.py
+import sys
+sys.path.append('../')
 import utils as utl
 import metrics as metrics
 
@@ -38,10 +44,10 @@ def train(config, model_dir, writer):
     """
     phases = ['train', 'test']
 
-    datasets, dataloaders = ds.get_modelnet40_dataloaders(root_dir=args.root_dir,
-                                                          phases=phases,
-                                                          batch_size=config['batch_size'],
-                                                          augment=config['augment'])
+    datasets, dataloaders = get_modelnet40_dataloaders(root_dir=args.root_dir,
+                                                       phases=phases,
+                                                       batch_size=config['batch_size'],
+                                                       augment=config['augment'])
 
     # add number of classes to config
     config['num_classes'] = 40
@@ -58,8 +64,8 @@ def train(config, model_dir, writer):
     device = torch.device('cuda:{}'.format(config['gpu_index']))
 
     # we load the model defined in the config file
-    model = res.resnet101(in_channels=config['in_channels'], num_classes=config['num_classes'],
-                          kernel_size=config['kernel_size']).to(device)
+    model = resnet101(input_size=config['in_channels'], num_classes=config['num_classes'],
+                      kernel_size=config['kernel_size'], sigma=config['sigma']).to(device)
 
     # if use multi_gpu then convert the model to DataParallel
     if config['multi_gpu']:
@@ -114,15 +120,16 @@ def train(config, model_dir, writer):
             trackers[phase]['loss'].reset()
             trackers[phase]['cm'].reset()
 
-            for step_number, (data, label) in enumerate(tqdm(dataloaders[phase],
-                                                        desc='[{}/{}] {} '.format(epoch + 1, config['max_epochs'],
+            for step_number, (data, label, coords) in enumerate(tqdm(dataloaders[phase],
+                                                                desc='[{}/{}] {} '.format(epoch + 1, config['max_epochs'],
                                                                                   phase))):
                 data = data.to(device, dtype=torch.float).permute(0, 2, 1)
                 label = label.to(device, dtype=torch.long).squeeze()
+                coords = coords.to(device, dtype=torch.float).permute(0, 2, 1)
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
-                    out = model(data)
+                    out = model(data, coords)
                     loss = criterion(out, label)
 
                     if phase == 'train':
@@ -194,7 +201,9 @@ def train(config, model_dir, writer):
 
 def main(args):
     # given program arguments, generate a config file
-    config = cfg.generate_config(args)
+    config = generate_config(args)
+
+    np.random.seed(config['random_seed'])
 
     config['in_channels'] = 3
 
@@ -233,6 +242,8 @@ if __name__ == '__main__':
                         help='index of GPU to use (0-indexed); if multi_gpu then value is ignored')
     parser.add_argument('--state', default=None, type=str,
                         help='path for best state to load')
+    parser.add_argument('--hs', default=False, action='store_true',
+                        help='perform hyperparameter search')
     # parser.add_argument('--batch_size', default=None, type=int, help='batch size')
     # parser.add_argument('--kernel_size', default=None, type=int,
     #                     help='odd value for kernel size')
@@ -245,11 +256,12 @@ if __name__ == '__main__':
     # parser.add_argument('--random_seed', default=None, type=int,
     #                     help='optional random seed')
     parser.add_argument('--batch_size', default=32, type=int, help='batch size')
+    parser.add_argument('--sigma', default=1.0, type=float, help='sigma value for weighted convolutions')
     parser.add_argument('--kernel_size', default=15, type=int,
                         help='odd value for kernel size')
     parser.add_argument('--lr', default=1e-3, type=float,
                         help='learning rate')
-    parser.add_argument('--bias', default=True, action='store_true',
+    parser.add_argument('--bias', default=False, action='store_true',
                         help='use bias in convolutions')
     parser.add_argument('--augment', default=False, action='store_true',
                         help='use augmentation in training')
@@ -260,7 +272,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.random_seed is not None:
-        np.random.seed(args.random_seed)
+    # if args.random_seed is not None:
+    #     np.random.seed(args.random_seed)
 
     main(args)

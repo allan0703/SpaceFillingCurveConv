@@ -6,13 +6,13 @@ class S3DISConfig:
     # Configuration of dataset and model:
     dataset = 'S3DIS'
     model = 'deeplab'  # np.random.choice(['unet', 'deeplab'])
-    backbone = 'resnet18'  # np.random.choice(['resnet18', 'resnet101'])  # np.random.choice(['xception', 'resnet18', 'resnet101'])
+    backbone = 'resnet101'  # np.random.choice(['resnet18', 'resnet101'])  # np.random.choice(['xception', 'resnet18', 'resnet101'])
     num_classes = 13
 
     # Hyperparameters for training:
     test_area = 5  # np.random.choice([1, 2, 3, 4, 5, 6])
-    kernel_size = np.random.choice([3, 5, 9, 15])
-    num_feats = 4  # np.random.choice([4, 9])  # np.random.choice([4, 5, 9])
+    kernel_size = np.random.choice([3, 5, 9, 15, 21])
+    num_feats = 9  # np.random.choice([4, 9])  # np.random.choice([4, 5, 9])
     lr = np.random.choice([1e-3, 1e-4])
     batch_size = int(np.random.choice([8, 16]))
     sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
@@ -74,7 +74,7 @@ class S3DISConfig:
             f.write('min_epochs = {:d}\n'.format(self.min_epochs))
             f.write('max_epochs = {:d}\n'.format(self.max_epochs))
             f.write('lr_decay = {:f}\n'.format(self.lr_decay))
-            f.write('lr_patience = {:f}\n'.format(self.lr_patience))
+            f.write('lr_patience = {:d}\n'.format(self.lr_patience))
             f.write('early_stopping = {:d}\n'.format(self.early_stopping))
 
             # GPUs
