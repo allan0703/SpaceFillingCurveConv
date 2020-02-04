@@ -29,27 +29,46 @@ class WeightedConv2D(nn.Module):
         self.dilation = dilation
         self.padding = padding
         self.stride = stride
-        # self.group = group
-        self.conv = MultiSeq(*[WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
-                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
-                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
-                               WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding)])
+
+        # shared conv
+        self.conv = WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding)
+
+        # seperate conv
+        # self.conv = MultiSeq(*[WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
+        #                        WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
+        #                        WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
+        #                        WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding)])
 
         self.fusion_multi_conv = nn.Sequential(nn.Conv1d(int(out_channels * t), out_channels, 1, padding=1, stride=stride),
                                                nn.BatchNorm1d(out_channels), nn.ReLU(inplace=True)
                                                )
 
     def forward(self, input, multi_coords, indices, reindices, sigma=0.05):
+        """
+        input: the point cloud in the original order [B, C, N]
+        multi_coords: coords of hilbert SFC in different order. Used for weighted correlation calculation [B, 3, N, T]
+        T is 4 by default
+        indices: hilbert indices of different curve [B, N, T]
+        reindices: re-indices of different curve [B, N, T]
+        sigma
+        """
         out = []
         for i in range(multi_coords.shape[-1]):
-            input = torch.gather(input, dim=-1, index=indices[:, :, i].unsqueeze(1).repeat(1, self.in_channels, 1))  # reindices[:,i]
+            # order points in SFC
+            input = torch.gather(input, dim=-1, index=indices[:, :, i].unsqueeze(1).repeat(1, self.in_channels, 1))
+            # calculate weigted conv
             coords = multi_coords[:, :, :, i]
-            x = self.conv[i](input, coords)
-            x = torch.gather(x, dim=-1, index=reindices[:, :, i].unsqueeze(1).repeat(1, self.out_channels, 1))  # reindices[:,i]
+            x = self.conv(input, coords)
+
+            # re-order back
+            x = torch.gather(x, dim=-1, index=reindices[:, :, i].unsqueeze(1).repeat(1, self.out_channels, 1))
             out.append(x)
+
         out = torch.cat(out, dim=1)  # out : B X CT X N
+        # fuse the coorelation from T different SFC
         out = self.fusion_multi_conv(out)
         return out
+
 
 class WeightedConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, group=1):
@@ -157,7 +176,7 @@ if __name__ == '__main__':
     #                                groups=groups, dilation=dilation, padding=padding, stride=stride)
 
     start_time = time.time()
-    out = conv(feats, coords,indices,reindices)
+    out = conv(feats, coords, indices, reindices)
 
     out.mean().backward()
     print('Time elapsed: {:f}s'.format(time.time() - start_time))

@@ -38,21 +38,19 @@ class DeepLab(nn.Module):
 
     def forward(self, input, multi_coords, indices, reindices):
         out = []
-        for i in range(multi_input.shape[-1]):
-            input = multi_input[:, :, :, i]
-            coords = multi_coords[:, :, :, i]
-            decoder_coords = coords[:, :, ::4]
-            x, low_level_feat, coords = self.backbone(input, coords)
-            # print('Backbone: Output size {} Feat size {}'.format(x.size(), low_level_feat.size()))
-            x = self.aspp(x, coords)
-            # print('ASPP: Output size {} - {}'.format(x.size(), coords.size()))
-            x = self.decoder(x, low_level_feat, decoder_coords)
-            # print('Decoder: Output size {}'.format(x.size()))
-            x = F.interpolate(x, size=input.size(-1), mode='linear', align_corners=True)
 
-            # reorder x
-            x = torch.gather(x, dim=-1, index=reindices[:, :, i].unsqueeze(1).repeat(1, self.num_classes, 1))  # reindices[:,i]
-            out.append(x)
+        decoder_coords = multi_coords[:, :, ::4, :]
+        x, low_level_feat, coords = self.backbone(input, coords)
+        # print('Backbone: Output size {} Feat size {}'.format(x.size(), low_level_feat.size()))
+        x = self.aspp(x, coords)
+        # print('ASPP: Output size {} - {}'.format(x.size(), coords.size()))
+        x = self.decoder(x, low_level_feat, decoder_coords)
+        # print('Decoder: Output size {}'.format(x.size()))
+        x = F.interpolate(x, size=input.size(-1), mode='linear', align_corners=True)
+
+        # reorder x
+        x = torch.gather(x, dim=-1, index=reindices[:, :, i].unsqueeze(1).repeat(1, self.num_classes, 1))  # reindices[:,i]
+        out.append(x)
         out = torch.cat(out, dim=1)  # out : B X CT X N
         out = self.fusion_multi_conv(out)
         return out

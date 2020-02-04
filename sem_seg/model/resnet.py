@@ -49,16 +49,13 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, inputs, multi_coords, indices, reindices):
-        x = inputs # now is b*c*n original point cloud
-        coords = multi_coords  # now is b*3*n*t indices is b* n*4 reindices is b * n *4
+    def forward(self, inputs):
+        x, multi_coords, indices, reindices= inputs #b*c*n
+        # coords = multi_coords  # now is b*3*n*t indices is b* n*4 reindices is b * n *4
         identity = x
 
         out = self.conv1(x, coords, indices, reindices, self.sigma)
-        coords = coords[:, :, ::self.stride, :]
 
-
-        #
         out = self.bn1(out)
         out = self.relu(out)
 
@@ -96,9 +93,9 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, input, multi_coords, indices, reindices):
-        x = input #b*c*n
-        coords = multi_coords
+    def forward(self, inputs):
+        x, multi_coords, indices, reindices= inputs #b*c*n
+
         identity = x
 
         out = self.conv1(x)
@@ -106,9 +103,10 @@ class Bottleneck(nn.Module):
         out = self.relu(out)
 
         out = self.conv2(out, coords, indices, reindices, self.sigma)
-        coords = coords[:, :, ::self.stride, :] #b*c*(n/2)*t
-        selected_indices = torch.arange(0, x.shape[2], self.stride).expand(coords.shape[0], coords.shape[3],coords.shape[2] ).transpose(2,1) #b*(n/2)*t selected original points(indices)
-        indices = torch.gather(indices, 2, selected_indices)
+        #coords = coords[:, :, ::self.stride, :] #b*c*(n/2)*t
+
+        # selected_indices = torch.arange(0, x.shape[2], self.stride).expand(coords.shape[0], coords.shape[3],coords.shape[2] ).transpose(2,1) #b*(n/2)*t selected original points(indices)
+        # indices = torch.gather(indices, 2, selected_indices)
 
         out = self.bn2(out)
         out = self.relu(out)
@@ -122,12 +120,12 @@ class Bottleneck(nn.Module):
         out += identity
         out = self.relu(out)
 
-        return out, coords
+        return out
 
 
 class ResNet(nn.Module):
     def __init__(self, block, layers, k, input_size=3, num_classes=40, zero_init_residual=False,
-                 groups=1, width_per_group=64, replace_stride_with_dilation=None, sigma=1.0):
+                 groups=1, width_per_group=64, replace_stride_with_dilation=[True, True, True], sigma=1.0):
         super(ResNet, self).__init__()
 
         norm_layer = nn.BatchNorm1d
@@ -147,13 +145,11 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        # self.conv1 = nn.Conv1d(input_size, self.inplanes, kernel_size=49, stride=2, padding=24,
-        #                        bias=False)
-        # self.conv1 = WeightedConv1D(input_size, self.inplanes, kernel_size=49, stride=2, padding=24)
-        self.conv1 = convKxK(input_size, self.inplanes, stride=2, k=49, dilation=1)
+
+        self.conv1 = convKxK(input_size, self.inplanes, stride=1, k=9, dilation=1)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
+
         self.sigma *= 4
         self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
@@ -170,8 +166,8 @@ class ResNet(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, WeightedConv2D):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            # elif isinstance(m, WeightedConv2D):
+            #     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, (nn.BatchNorm1d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -181,10 +177,9 @@ class ResNet(nn.Module):
         # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
         if zero_init_residual:
             for m in self.modules():
-                # if isinstance(m, Bottleneck):
-                #     nn.init.constant_(m.bn3.weight, 0)
-                # el
-                if isinstance(m, BasicBlock):
+                if isinstance(m, Bottleneck):
+                    nn.init.constant_(m.bn3.weight, 0)
+                elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
     def _make_layer(self, block, planes, blocks, k=9, stride=1, dilate=False, sigma=1.0):
@@ -210,27 +205,27 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x, coords):
+    def forward(self, x, multi_coords, indices, reindices):
         # print('Size at input: {}'.format(x.size()))
         # x = self.conv1(x)
-        x = self.conv1(x, coords)
+        x = self.conv1(x, coords, indices, reindices)
         x = self.bn1(x)
         x = self.relu(x)
         # print('Size after conv1: {}'.format(x.size()))
-        x = self.maxpool(x)
+        # x = self.maxpool(x)
         # print('Size after maxpool: {}'.format(x.size()))
-        coords = coords[:, :, ::4]
-        x, coords = self.layer1((x, coords))
+        # coords = coords[:, :, ::4]
+        x= self.layer1((x, multi_coords),indices, reindices)
         # print('Size after layer1: {}'.format(x.size()))
         low_level_feats = x
-        x, coords = self.layer2((x, coords))
+        x = self.layer2(x,multi_coords,indices, reindices)
         # print('Size after layer2: {}'.format(x.size()))
-        x, coords = self.layer3((x, coords))
+        x = self.layer3(x, multi_coords,indices, reindices)
         # print('Size after layer3: {}'.format(x.size()))
-        x, coords = self.layer4((x, coords))
+        x= self.layer4(x, multi_coords,indices, reindices)
         # print('Size after layer4: {}'.format(x.size()))
 
-        return x, low_level_feats, coords
+        return x
 
 
 def _resnet(block, layers, k, **kwargs):
@@ -270,17 +265,33 @@ if __name__ == '__main__':
     device = torch.device('cpu')
 
     feats = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
-    coords = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
-    k = 21
-
+    coords = torch.rand((4, 3, 4096, 4), dtype=torch.float).to(device)
+    k = 9
+    batch_size, num_points, T = 4, 4096, 4
+    reindices1 = torch.stack([torch.randperm(num_points), torch.randperm(num_points), torch.randperm(num_points),
+                              torch.randperm(num_points)], dim=-1).long()
+    reindices2 = torch.stack([torch.randperm(num_points), torch.randperm(num_points), torch.randperm(num_points),
+                              torch.randperm(num_points)], dim=-1).long()
+    reindices = torch.rand((batch_size, num_points, T))
+    reindices[0] = reindices1
+    reindices[1] = reindices2
+    reindices = reindices.long()
+    indices1 = torch.stack([torch.randperm(num_points), torch.randperm(num_points), torch.randperm(num_points),
+                            torch.randperm(num_points)], dim=-1).long()
+    indices2 = torch.stack([torch.randperm(num_points), torch.randperm(num_points), torch.randperm(num_points),
+                            torch.randperm(num_points)], dim=-1).long()
+    indices = torch.rand((batch_size, num_points, T))
+    indices[0] = indices1
+    indices[1] = indices2
+    indices = reindices.long()
     net = resnet101(kernel_size=k, input_size=3, num_classes=40).to(device)
 
     start_time = time.time()
-    out, low_level_feats, out_coords = net(feats, coords)
+    out = net(feats, coords,indices,reindices)
     logging.info('It took {:f}s'.format(time.time() - start_time))
     # out = out.mean(dim=1)
     logging.info('Output size {}'.format(out.size()))
-    logging.info('Feats size {}'.format(low_level_feats.size()))
-    logging.info('Out coords size {}'.format(out_coords.size()))
+    # logging.info('Feats size {}'.format(low_level_feats.size()))
+    # logging.info('Out coords size {}'.format(out_coords.size()))
 
     out.mean().backward()

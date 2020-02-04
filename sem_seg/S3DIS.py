@@ -90,6 +90,7 @@ class S3DISDataset(Dataset):
 
         if self.augment:
             points = pointcloud[:, :3]
+            # todo: check later
             points = rotate_points(points)
             points = scale_points(points)
             points = add_noise_points(points)
@@ -111,18 +112,17 @@ class S3DISDataset(Dataset):
         rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
         rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
         rotation_matrices = [np.eye(3), rotation_x, rotation_y, rotation_z]
-
-        indices, reindices, multi_coordinates = [], [], [] # reindices
+        indices, reindices, multi_coordinates = [], [], []  # reindices
 
         # return appropriate number of features
         if self.num_features == 4:
-            pointcloud = np.hstack((pointcloud[:, 3:6] / 255.0, pointcloud[:, 2, np.newaxis]))
+            pointcloud = np.hstack((pointcloud[:, 3:6], pointcloud[:, 2, np.newaxis]))
         elif self.num_features == 5:
-            pointcloud = np.hstack((np.ones((pointcloud.shape[0], 1)), pointcloud[:, 3:6] / 255.0,
+            pointcloud = np.hstack((np.ones((pointcloud.shape[0], 1)), pointcloud[:, 3:6],
                                     pointcloud[:, 2, np.newaxis]))
         elif self.num_features == 9:
             min_val = pointcloud[:, :3].min(axis=0)
-            pointcloud = np.hstack((pointcloud[:, :3] - min_val, pointcloud[:, 3:6] / 255.0, pointcloud[:, 6:9]))
+            pointcloud = np.hstack((pointcloud[:, :3] - min_val, pointcloud[:, 3:6], pointcloud[:, 6:9]))
         else:
             raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
                              .format(self.num_features))
@@ -131,27 +131,25 @@ class S3DISDataset(Dataset):
             points_voxel_rotation = np.matmul(points_voxel, rotation_matrices[num_rotation]).astype(int)  # 4*n * 3
 
             if num_rotation:
-                # points_voxel_rotation = - points_voxel_rotation
-                # points_voxel_rotation[:, num_rotation-1] = -points_voxel_rotation[:, num_rotation-1]
+                # shift back to the origin
                 points_voxel_rotation += (2 ** self.p - 1)
                 points_voxel_rotation[:, num_rotation - 1] -= (2 ** self.p - 1)
 
             for i in range(points_voxel.shape[0]):
                  hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[i, :3].astype(int))
             idx = np.argsort(hilbert_dist)
-            indices.append(idx)
+            indices.append(torch.from_numpy(idx))
             multi_coordinates.append(torch.from_numpy(coordinates[idx, :]))
 
+            # calculate the re-indices
             index_sort = np.vstack((idx.copy(), np.arange(pointcloud.shape[0]))).transpose()  # n*2
             index_sort = index_sort[index_sort[:, 0].argsort()]
             reindices.append(torch.from_numpy(index_sort[:, 1]))
-
-
         indices = torch.stack(indices, dim=-1)  # get n*4
         multi_coordinates = torch.stack(multi_coordinates, dim=-1)
         reindices = torch.stack(reindices, dim=-1)
 
-        return pointcloud, multi_coordinates, label, indices, reindices   #n*c n*3*t n*1 n*4,n*4
+        return pointcloud, multi_coordinates, label, indices, reindices   #  n*c n*3*t n*1 n*4,n*4
 
 
 class S3DIS:
