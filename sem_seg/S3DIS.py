@@ -111,13 +111,13 @@ class S3DISDataset(Dataset):
 
         # return appropriate number of features
         if self.num_features == 4:
-            pointcloud = np.hstack((pointcloud[:, 3:6] / 255.0, pointcloud[:, 2, np.newaxis]))
+            pointcloud = np.hstack((pointcloud[:, 3:6], pointcloud[:, 2, np.newaxis]))
         elif self.num_features == 5:
-            pointcloud = np.hstack((np.ones((pointcloud.shape[0], 1)), pointcloud[:, 3:6] / 255.0,
+            pointcloud = np.hstack((np.ones((pointcloud.shape[0], 1)), pointcloud[:, 3:6],
                                     pointcloud[:, 2, np.newaxis]))
         elif self.num_features == 9:
             min_val = pointcloud[:, :3].min(axis=0)
-            pointcloud = np.hstack((pointcloud[:, :3] - min_val, pointcloud[:, 3:6] / 255.0, pointcloud[:, 6:9]))
+            pointcloud = np.hstack((pointcloud[:, :3] - min_val, pointcloud[:, 3:6], pointcloud[:, 6:9]))
         else:
             raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
                              .format(self.num_features))
