@@ -3,7 +3,7 @@ import torch.nn as nn
 import logging
 import time
 
-from .weighted_conv import WeightedConv1D
+from model.weighted_conv import WeightedConv1D
 
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']
@@ -124,7 +124,7 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
     def __init__(self, block, layers, k, input_size=3, num_classes=40, zero_init_residual=False,
-                 groups=1, width_per_group=64, replace_stride_with_dilation=None, sigma=1.0):
+                 groups=1, width_per_group=64, replace_stride_with_dilation=None, sigma=1.0, conv1_kernel=49):
         super(ResNet, self).__init__()
 
         norm_layer = nn.BatchNorm1d
@@ -147,7 +147,7 @@ class ResNet(nn.Module):
         # self.conv1 = nn.Conv1d(input_size, self.inplanes, kernel_size=49, stride=2, padding=24,
         #                        bias=False)
         # self.conv1 = WeightedConv1D(input_size, self.inplanes, kernel_size=49, stride=2, padding=24)
-        self.conv1 = convKxK(input_size, self.inplanes, stride=2, k=49, dilation=1)
+        self.conv1 = convKxK(input_size, self.inplanes, stride=2, k=conv1_kernel, dilation=1)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)

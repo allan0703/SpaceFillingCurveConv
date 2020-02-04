@@ -11,7 +11,7 @@ __all__ = ['deeplab']
 
 
 class DeepLab(nn.Module):
-    def __init__(self, backbone='xception', input_size=3, output_stride=16, num_classes=21, kernel_size=9, sigma=1.0):
+    def __init__(self, backbone='xception', input_size=3, output_stride=16, num_classes=21, kernel_size=9, sigma=1.0, conv1_kernel =49):
         super(DeepLab, self).__init__()
 
         if backbone == 'resnet18':
@@ -20,7 +20,7 @@ class DeepLab(nn.Module):
             self.aspp = aspp(in_channels=512, out_channels=256, output_stride=output_stride,
                              kernel_size=kernel_size, sigma=sigma)
         elif backbone == 'resnet101':
-            self.backbone = resnet101(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
+            self.backbone = resnet101(input_size=input_size, kernel_size=kernel_size, sigma=sigma,conv1_kernel=conv1_kernel)
             self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride,
                              kernel_size=kernel_size, sigma=sigma)
         else:
@@ -42,7 +42,7 @@ class DeepLab(nn.Module):
         return x
 
 
-def deeplab(backbone='resnet101', input_size=3, output_stride=16, num_classes=21, kernel_size=27, sigma=1.0):
+def deeplab(backbone='resnet101', input_size=3, output_stride=16, num_classes=21, kernel_size=27, sigma=1.0,conv1_kernel=49):
     return DeepLab(backbone, input_size, output_stride, num_classes, kernel_size, sigma)
 
 

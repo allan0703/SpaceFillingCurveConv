@@ -18,6 +18,7 @@ class S3DISConfig:
     sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
     augment = True  # np.random.choice([True, False])
     bias = False  # np.random.choice([True, False])
+    conv1_kernel = np.random.choice([7, 9, 15, 21, 31, 39, 45, 49])
 
     # Training setup:
     max_epochs = 300

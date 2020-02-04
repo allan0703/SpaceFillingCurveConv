@@ -50,7 +50,7 @@ def train(dataset, model_dir, writer):
     else:
         model = deeplab(backbone=dataset.config.backbone, input_size=dataset.config.num_feats,
                         num_classes=dataset.config.num_classes, kernel_size=dataset.config.kernel_size,
-                        sigma=1.5).to(device)
+                        sigma=1.5, conv1_kernel=dataset.config.conv1_kernel).to(device)
 
     # if use multi_gou then convert the model to DataParallel
     if dataset.config.multi_gpu:
@@ -243,7 +243,8 @@ if __name__ == '__main__':
                         help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str,
                         help='logging level')
-
+    parser.add_argument('--conv1_kernel', default=None, type=int,
+                        help='odd value for kernel size')
     args = parser.parse_args()
 
     if args.random_seed is not None:
