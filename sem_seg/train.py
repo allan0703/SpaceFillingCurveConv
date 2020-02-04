@@ -223,7 +223,7 @@ if __name__ == '__main__':
                         help='index of GPU to use (0-indexed); if multi_gpu then value is ignored')
     parser.add_argument('--model', default=None, type=str,
                         help='either deeplab or unet')
-    parser.add_argument('--backbone', default=None, type=str,
+    parser.add_argument('--backbone', default='xception', type=str,
                         help='backbone to use for deeplab (xception, resnet101, resnet18')
     parser.add_argument('--kernel_size', default=None, type=int,
                         help='odd value for kernel size')
