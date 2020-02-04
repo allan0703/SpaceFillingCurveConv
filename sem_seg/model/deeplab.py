@@ -36,29 +36,16 @@ class DeepLab(nn.Module):
                              kernel_size=kernel_size, sigma=sigma)
         elif backbone == 'resnet101':
 
-            self.backbone = MultiSeq(
-                resnet101(input_size=input_size, kernel_size=kernel_size, sigma=sigma),
-                resnet101(input_size=input_size, kernel_size=kernel_size, sigma=sigma),
-                resnet101(input_size=input_size, kernel_size=kernel_size, sigma=sigma),
-                resnet101(input_size=input_size, kernel_size=kernel_size, sigma=sigma))
-
-            self.aspp = MultiSeq(
-                aspp(in_channels=2048, out_channels=256, output_stride=output_stride, kernel_size=kernel_size, sigma=sigma),
-                aspp(in_channels=2048, out_channels=256, output_stride=output_stride, kernel_size=kernel_size, sigma=sigma),
-                aspp(in_channels=2048, out_channels=256, output_stride=output_stride, kernel_size=kernel_size, sigma=sigma),
-                aspp(in_channels=2048, out_channels=256, output_stride=output_stride, kernel_size=kernel_size, sigma=sigma)
-            )
+            self.backbone = resnet101(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
+            self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride, kernel_size=kernel_size, sigma=sigma)
         else:
             self.backbone = AlignedXception(output_stride=output_stride, input_size=input_size)
             self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride, kernel_size=kernel_size)
 
-        self.decoder = MultiSeq(
-                        decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma),
-                        decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma),
-                        decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma),
-                        decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma)
-        )
-        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(num_classes * T, 64, 1),
+        self.decoder = decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma)
+        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(num_classes*T, 256, 3, padding=1),
+                                               nn.BatchNorm1d(256), nn.ReLU(inplace=True),
+                                               nn.Conv1d(256, 64, 3, padding=1),
                                                nn.BatchNorm1d(64), nn.ReLU(inplace=True),
                                                nn.Conv1d(64, num_classes, 1)
                                                )
@@ -69,17 +56,16 @@ class DeepLab(nn.Module):
             input = multi_input[:, :, :, i]
             coords = multi_coords[:, :, :, i]
             decoder_coords = coords[:, :, ::4]
-            x, low_level_feat, coords = self.backbone[i](input, coords)
+            x, low_level_feat, coords = self.backbone(input, coords)
             # print('Backbone: Output size {} Feat size {}'.format(x.size(), low_level_feat.size()))
-            x = self.aspp[i](x, coords)
+            x = self.aspp(x, coords)
             # print('ASPP: Output size {} - {}'.format(x.size(), coords.size()))
-            x = self.decoder[i](x, low_level_feat, decoder_coords)
+            x = self.decoder(x, low_level_feat, decoder_coords)
             # print('Decoder: Output size {}'.format(x.size()))
             x = F.interpolate(x, size=input.size(-1), mode='linear', align_corners=True)
 
             # reorder x
-            x = torch.gather(x, dim=-1,
-                             index=reindices[:, :, i].unsqueeze(1).repeat(1, self.num_classes, 1))  # reindices[:,i]
+            x = torch.gather(x, dim=-1,index=reindices[:, :, i].unsqueeze(1).repeat(1, self.num_classes, 1))  # reindices[:,i]
             out.append(x)
         out = torch.cat(out, dim=1)  # out : B X CT X N
         out = self.fusion_multi_conv(out)
