@@ -35,7 +35,7 @@ class WeightedConv2D(nn.Module):
                                WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
                                WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding)])
 
-        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(int(out_channels * T), out_channels, 1, padding=1, stride=stride),
+        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(int(out_channels * t), out_channels, 1, padding=1, stride=stride),
                                                nn.BatchNorm1d(out_channels), nn.ReLU(inplace=True)
                                                )
 

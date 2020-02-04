@@ -107,17 +107,19 @@ class AlignedXception(nn.Module):
     def __init__(self, output_stride, input_size, norm_layer=None):
         super(AlignedXception, self).__init__()
 
-        if output_stride == 16:
-            entry_block3_stride = 2
-            middle_block_dilation = 1
-            exit_block_dilations = (1, 2)
-        elif output_stride == 8:
-            entry_block3_stride = 1
-            middle_block_dilation = 2
-            exit_block_dilations = (2, 4)
-        else:
-            raise NotImplementedError
-
+        # if output_stride == 16:
+        #     entry_block3_stride = 2
+        #     middle_block_dilation = 1
+        #     exit_block_dilations = (1, 2)
+        # elif output_stride == 8:
+        #     entry_block3_stride = 1
+        #     middle_block_dilation = 2
+        #     exit_block_dilations = (2, 4)
+        # else:
+        #     raise NotImplementedError
+        entry_block3_stride = 1
+        middle_block_dilation = 2
+        exit_block_dilations = (2, 4)
         if norm_layer is None:
             norm_layer = nn.BatchNorm1d
 
