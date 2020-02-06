@@ -1,9 +1,9 @@
 import torch
 from torch import nn
-from torch.nn import functional as F, Sequential as Seq
+from torch.nn import functional as F, Sequential as Seq, ModuleList as ModList
 import time
 
-__all__ = ['WeightedConv1D']
+__all__ = ['WeightedConv1D', 'MultiOrderWeightedConv1D']
 
 
 class MultiSeq(Seq):
@@ -19,9 +19,9 @@ class MultiSeq(Seq):
         return inputs
 
 
-class WeightedConv2D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, group=1, t=4):
-        super(WeightedConv2D, self).__init__()
+class MultiOrderWeightedConv1D(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, t=4):
+        super(MultiOrderWeightedConv1D, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
 
@@ -31,13 +31,10 @@ class WeightedConv2D(nn.Module):
         self.stride = stride
 
         # shared conv
-        self.conv = WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding)
-
-        # seperate conv
-        # self.conv = MultiSeq(*[WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
-        #                        WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
-        #                        WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
-        #                        WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding)])
+        self.convs = ModList([WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
+                              WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
+                              WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding),
+                              WeightedConv1D(in_channels, out_channels, kernel_size, dilation, padding)])
 
         self.fusion_multi_conv = nn.Sequential(nn.Conv1d(int(out_channels * t), out_channels, 1, padding=1, stride=stride),
                                                nn.BatchNorm1d(out_channels), nn.ReLU(inplace=True)
@@ -55,10 +52,10 @@ class WeightedConv2D(nn.Module):
         out = []
         for i in range(multi_coords.shape[-1]):
             # order points in SFC
-            input = torch.gather(input, dim=-1, index=indices[:, :, i].unsqueeze(1).repeat(1, self.in_channels, 1))
+            inp = torch.gather(input, dim=-1, index=indices[:, :, i].unsqueeze(1).repeat(1, self.in_channels, 1))
             # calculate weigted conv
             coords = multi_coords[:, :, :, i]
-            x = self.conv(input, coords)
+            x = self.convs[i](inp, coords)
 
             # re-order back
             x = torch.gather(x, dim=-1, index=reindices[:, :, i].unsqueeze(1).repeat(1, self.out_channels, 1))
@@ -109,7 +106,7 @@ class WeightedConv1D(WeightedConv):
         super(WeightedConv1D, self).__init__(in_channels, out_channels, (kernel_size, 1),
                                              (dilation, 1), (padding, 0), (stride, 1))
 
-    def forward(self, x, coords=None, sigma=0.08):
+    def forward(self, x, coords, sigma=0.08):
         if coords is not None:
             coords = coords.unsqueeze(-1)
         out = super().forward(x.unsqueeze(-1), coords, sigma)
@@ -152,23 +149,31 @@ if __name__ == '__main__':
     padding = 4
     dilation = 1
     stride = 1
+    device = torch.device('cpu')
 
-    feats = torch.rand((batch_size, in_channels, num_points), dtype=torch.float)
-    coords = torch.rand((batch_size, 3, num_points, T), dtype=torch.float)
-    reindices1 = torch.stack([torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points)], dim=-1).long()
-    reindices2 = torch.stack([torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points)], dim=-1).long()
+    feats = torch.rand((batch_size, in_channels, num_points), dtype=torch.float).to(device)
+    coords = torch.rand((batch_size, 3, num_points, T), dtype=torch.float).to(device)
+
+    reindices1 = torch.stack([torch.randperm(num_points), torch.randperm(num_points),
+                              torch.randperm(num_points), torch.randperm(num_points)], dim=-1).long()
+    reindices2 = torch.stack([torch.randperm(num_points), torch.randperm(num_points),
+                              torch.randperm(num_points), torch.randperm(num_points)], dim=-1).long()
     reindices = torch.rand((batch_size, num_points, T))
-    reindices[0]= reindices1
-    reindices[1]=reindices2
-    reindices = reindices.long()
-    indices1 = torch.stack([torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points)], dim=-1).long()
-    indices2 = torch.stack([torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points),torch.randperm(num_points)], dim=-1).long()
+    reindices[0] = reindices1
+    reindices[1] = reindices2
+    reindices = reindices.long().to(device)
+
+    indices1 = torch.stack([torch.randperm(num_points), torch.randperm(num_points),
+                            torch.randperm(num_points), torch.randperm(num_points)], dim=-1).long()
+    indices2 = torch.stack([torch.randperm(num_points), torch.randperm(num_points),
+                            torch.randperm(num_points), torch.randperm(num_points)], dim=-1).long()
     indices = torch.rand((batch_size, num_points, T))
-    indices[0]= indices1
-    indices[1]= indices2
-    indices = indices.long()
+    indices[0] = indices1
+    indices[1] = indices2
+    indices = indices.long().to(device)
+
     conv = WeightedConv2D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
-                          dilation=dilation, padding=padding, stride=stride)
+                          dilation=dilation, padding=padding, stride=stride).to(device)
 
     # feats = torch.rand((batch_size, groups, in_channels, num_points), dtype=torch.float)
     # coords = torch.rand((batch_size, groups, 3, num_points), dtype=torch.float)
@@ -176,8 +181,11 @@ if __name__ == '__main__':
     #                                groups=groups, dilation=dilation, padding=padding, stride=stride)
 
     start_time = time.time()
-    out = conv(feats, coords, indices, reindices)
+    N = 100
+    for _ in range(N):
+        out = conv(feats, coords, indices, reindices)
+        out.mean().backward()
 
-    out.mean().backward()
-    print('Time elapsed: {:f}s'.format(time.time() - start_time))
+    print('Time elapsed: {:f}s'.format((time.time() - start_time) / N))
+    print(feats.shape, coords.shape, indices.shape, reindices.shape)
     print(out.shape)
