@@ -200,6 +200,7 @@ def main(args):
 
     dataset.config.dump_to_tensorboard(writer=writer)
 
+    print(dataset.config)
     train(dataset=dataset, model_dir=model_dir, writer=writer)
 
     # close Tensorboard writer
@@ -213,7 +214,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--root_dir', required=True, type=str,
                         help='root directory containing S3DIS data')
-    parser.add_argument('--model_dir', required=True, type=str,
+    parser.add_argument('--model_dir', default='../log', type=str,
                         help='root directory containing S3DIS data')
     parser.add_argument('--test_area', default=5, type=int,
                         help='area to use for testing')
