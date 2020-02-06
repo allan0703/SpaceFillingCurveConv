@@ -2,7 +2,6 @@ from argparse import ArgumentParser
 import numpy as np
 import os
 from tqdm import tqdm, trange
-import glob
 import h5py
 import logging
 import time
@@ -111,7 +110,7 @@ class S3DISDataset(Dataset):
 
         # return appropriate number of features
         if self.num_features == 4:
-            pointcloud = np.hstack((pointcloud[:, 3:6], pointcloud[:, 2, np.newaxis]))
+            pointcloud = np.hstack((pointcloud[:, 3:6]/255., pointcloud[:, 2, np.newaxis]))
         elif self.num_features == 5:
             pointcloud = np.hstack((np.ones((pointcloud.shape[0], 1)), pointcloud[:, 3:6],
                                     pointcloud[:, 2, np.newaxis]))
