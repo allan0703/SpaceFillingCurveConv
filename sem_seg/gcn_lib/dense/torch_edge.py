@@ -77,7 +77,7 @@ class DilatedKnn2d(nn.Module):
         self.knn = _knn_matrix
 
     def forward(self, x):
-        edge_index = self.knn(x, self.k * self.dilation, self.self_loop)
+        edge_index = self.knn(x.detach(), self.k * self.dilation, self.self_loop)
         return self._dilated(edge_index)
 
 
