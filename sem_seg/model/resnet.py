@@ -147,10 +147,13 @@ class ResNet(nn.Module):
         # self.conv1 = nn.Conv1d(input_size, self.inplanes, kernel_size=49, stride=2, padding=24,
         #                        bias=False)
         # self.conv1 = WeightedConv1D(input_size, self.inplanes, kernel_size=49, stride=2, padding=24)
-        self.conv1 = convKxK(input_size, self.inplanes, stride=2, k=49, dilation=1)
+        self.conv1 = convKxK(input_size, self.inplanes, stride=2, k=k, dilation=1)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
+        # self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
+        self.conv2 = convKxK(self.inplanes, self.inplanes, stride=2, k=k, dilation=1)
+        self.bn2 = norm_layer(self.inplanes)
+
         self.sigma *= 4
         self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
@@ -213,10 +216,15 @@ class ResNet(nn.Module):
         x = self.conv1(x, coords)
         x = self.bn1(x)
         x = self.relu(x)
+
+        coords = coords[:, :, ::2]
+        x = self.conv2(x, coords)
+        x = self.bn2(x)
+        x = self.relu(x)
         # print('Size after conv1: {}'.format(x.size()))
-        x = self.maxpool(x)
+        # x = self.maxpool(x)
         # print('Size after maxpool: {}'.format(x.size()))
-        coords = coords[:, :, ::4]
+        coords = coords[:, :, ::2]
         x, coords = self.layer1((x, coords))
         # print('Size after layer1: {}'.format(x.size()))
         low_level_feats = x
@@ -270,7 +278,7 @@ if __name__ == '__main__':
     coords = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
     k = 21
 
-    net = resnet101(kernel_size=k, input_size=3, num_classes=40).to(device)
+    net = resnet18(kernel_size=k, input_size=3, num_classes=40).to(device)
 
     start_time = time.time()
     out, low_level_feats, out_coords = net(feats, coords)
