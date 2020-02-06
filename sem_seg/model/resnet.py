@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import logging
 import time
-
+from gcn_lib.dense import GraphConv2d, DilatedKnn2d
 from .weighted_conv import WeightedConv1D
 
 
@@ -16,11 +16,17 @@ __all__ = ['resnet18', 'resnet50', 'resnet101']
 #                      padding=dilation * padding, groups=groups, bias=False, dilation=dilation)
 
 
-def convKxK(in_planes, out_planes, stride=1, k=9, dilation=1):
-    """Kx1 weighted convolution"""
-    padding = k // 2
+class convKxK(nn.Module):
+    def __init__(self, in_planes, out_planes, stride=1, k=9, dilation=1):
+        super(convKxK, self).__init__()
+        padding = k // 2
+        self.conv1 = GraphConv2d(in_planes, in_planes, conv='edge', act='relu', norm=None, bias=True)
+        self.conv2 = WeightedConv1D(in_planes, out_planes, k, dilation, padding, stride)
 
-    return WeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation, padding=padding, stride=stride)
+    def forward(self, x, coords, sigma=0.02, edge_index=None):
+        x = self.conv1(x, edge_index)
+        x = self.conv2(x, coords, sigma)
+        return x
 
 
 def conv1x1(in_planes, out_planes, stride=1):
@@ -50,18 +56,18 @@ class BasicBlock(nn.Module):
         self.stride = stride
 
     def forward(self, inputs):
-        x, coords = inputs
+        x, coords, edge_index = inputs
 
         identity = x
 
-        out = self.conv1(x, coords, self.sigma)
+        out = self.conv1(x, coords, self.sigma, edge_index)
         coords = coords[:, :, ::self.stride]
 
         #
         out = self.bn1(out)
         out = self.relu(out)
 
-        out = self.conv2(out, coords, self.sigma * self.stride)
+        out = self.conv2(out, coords, self.sigma * self.stride, edge_index)
         out = self.bn2(out)
 
         if self.downsample is not None:
@@ -70,7 +76,7 @@ class BasicBlock(nn.Module):
         out += identity
         out = self.relu(out)
 
-        return out, coords
+        return out, coords, edge_index
 
 
 class Bottleneck(nn.Module):
@@ -96,7 +102,7 @@ class Bottleneck(nn.Module):
         self.stride = stride
 
     def forward(self, inputs):
-        x, coords = inputs
+        x, coords, edge_index = inputs
 
         identity = x
 
@@ -104,7 +110,7 @@ class Bottleneck(nn.Module):
         out = self.bn1(out)
         out = self.relu(out)
 
-        out = self.conv2(out, coords, self.sigma)
+        out = self.conv2(out, coords, self.sigma, edge_index)
         coords = coords[:, :, ::self.stride]
 
         out = self.bn2(out)
@@ -119,12 +125,12 @@ class Bottleneck(nn.Module):
         out += identity
         out = self.relu(out)
 
-        return out, coords
+        return out, coords, edge_index
 
 
 class ResNet(nn.Module):
     def __init__(self, block, layers, k, input_size=3, num_classes=40, zero_init_residual=False,
-                 groups=1, width_per_group=64, replace_stride_with_dilation=None, sigma=1.0):
+                 groups=1, width_per_group=64, replace_stride_with_dilation=None, sigma=1.0, knn=9):
         super(ResNet, self).__init__()
 
         norm_layer = nn.BatchNorm1d
@@ -134,7 +140,7 @@ class ResNet(nn.Module):
         self.dilation = 1
 
         self.sigma = sigma
-
+        self.init_sigma = sigma
         if replace_stride_with_dilation is None:
             replace_stride_with_dilation = [False, False, False]
         if len(replace_stride_with_dilation) != 3:
@@ -142,13 +148,14 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        # self.conv1 = nn.Conv1d(input_size, self.inplanes, kernel_size=49, stride=2, padding=24,
-        #                        bias=False)
-        # self.conv1 = WeightedConv1D(input_size, self.inplanes, kernel_size=49, stride=2, padding=24)
-        self.conv1 = convKxK(input_size, self.inplanes, stride=2, k=49, dilation=1)
+
+        self.knn_graph = DilatedKnn2d(knn, 1, self_loop=False)
+
+        self.conv1 = convKxK(input_size, self.inplanes, stride=1, k=9, dilation=1)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
+
+        # self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
         self.sigma *= 4
         self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
@@ -208,21 +215,25 @@ class ResNet(nn.Module):
     def forward(self, x, coords):
         # print('Size at input: {}'.format(x.size()))
         # x = self.conv1(x)
-        x = self.conv1(x, coords)
+        edge_index = self.knn_graph(coords)
+        x = self.conv1(x, coords, self.init_sigma, edge_index)
         x = self.bn1(x)
         x = self.relu(x)
         # print('Size after conv1: {}'.format(x.size()))
-        x = self.maxpool(x)
+        # x = self.maxpool(x)
         # print('Size after maxpool: {}'.format(x.size()))
-        coords = coords[:, :, ::4]
-        x, coords = self.layer1((x, coords))
+        # coords = coords[:, :, ::4]
+        x, coords = self.layer1((x, coords, edge_index))
         # print('Size after layer1: {}'.format(x.size()))
         low_level_feats = x
-        x, coords = self.layer2((x, coords))
+        edge_index = self.knn_graph(x)
+        x, coords = self.layer2((x, coords, edge_index))
         # print('Size after layer2: {}'.format(x.size()))
-        x, coords = self.layer3((x, coords))
+        edge_index = self.knn_graph(x)
+        x, coords = self.layer3((x, coords, edge_index))
         # print('Size after layer3: {}'.format(x.size()))
-        x, coords = self.layer4((x, coords))
+        edge_index = self.knn_graph(x)
+        x, coords = self.layer4((x, coords, edge_index))
         # print('Size after layer4: {}'.format(x.size()))
 
         return x, low_level_feats, coords
