@@ -78,7 +78,7 @@ class EdgeConv2d(nn.Module):
         edge_index = remove_self_loops(edge_index)
         x_i = batched_index_select(x, edge_index[1])
         x_j = batched_index_select(x, edge_index[0])
-        max_value, _ = torch.max(self.nn(torch.cat([x_i, x_j - x_i], dim=1)), -1, keepdim=True)
+        max_value, _ = torch.max(self.nn(torch.cat([x_i, x_j - x_i], dim=1)), -1, keepdim=False)
         return max_value
 
 
@@ -332,7 +332,7 @@ class GraphConv2d(nn.Module):
     Static graph convolution layer
     """
 
-    def __init__(self, in_channels, out_channels, conv='edge', act='relu', norm=None, bias=True):
+    def __init__(self, in_channels, out_channels, conv='edge', act='relu', norm=None, bias=False):
         super(GraphConv2d, self).__init__()
         if conv == 'edge':
             self.gconv = EdgeConv2d(in_channels, out_channels, act, norm, bias)

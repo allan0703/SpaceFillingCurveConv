@@ -61,10 +61,6 @@ class ASPP(nn.Module):
             raise NotImplementedError
 
         modules = []
-        # modules.append(nn.Sequential(
-        #     nn.Conv1d(in_channels, out_channels, 1, bias=False),
-        #     nn.BatchNorm1d(out_channels),
-        #     nn.ReLU()))
 
         self.conv1 = nn.Sequential(
             nn.Conv1d(in_channels, out_channels, 1, bias=False),

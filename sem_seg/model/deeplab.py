@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .xception import AlignedXception
-from .resnet import resnet18, resnet101
-from .aspp import aspp
-from .decoder import decoder
+from model.xception import AlignedXception
+from model.resnet import resnet18, resnet101
+from model.aspp import aspp
+from model.decoder import decoder
 
 __all__ = ['deeplab']
 
@@ -16,12 +16,12 @@ class DeepLab(nn.Module):
 
         if backbone == 'resnet18':
             self.backbone = resnet18(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
-            sigma *= 32
+            sigma *= 4
             self.aspp = aspp(in_channels=512, out_channels=256, output_stride=output_stride,
                              kernel_size=kernel_size, sigma=sigma)
         elif backbone == 'resnet101':
             self.backbone = resnet101(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
-            sigma *= 32
+            sigma *= 4
             self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride,
                              kernel_size=kernel_size, sigma=sigma)
         else:
@@ -31,14 +31,11 @@ class DeepLab(nn.Module):
         self.decoder = decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma)
 
     def forward(self, input, coords):
-        decoder_coords = coords[:, :, ::4]
         x, low_level_feat, coords = self.backbone(input, coords)
-        # print('Backbone: Output size {} Feat size {}'.format(x.size(), low_level_feat.size()))
+
         x = self.aspp(x, coords)
-        # print('ASPP: Output size {} - {}'.format(x.size(), coords.size()))
-        x = self.decoder(x, low_level_feat, decoder_coords)
-        # print('Decoder: Output size {}'.format(x.size()))
-        x = F.interpolate(x, size=input.size(-1), mode='linear', align_corners=True)
+
+        x = self.decoder(x, low_level_feat, coords)
 
         return x
 

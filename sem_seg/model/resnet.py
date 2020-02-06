@@ -3,7 +3,7 @@ import torch.nn as nn
 import logging
 import time
 from gcn_lib.dense import GraphConv2d, DilatedKnn2d
-from .weighted_conv import WeightedConv1D
+from model.weighted_conv import WeightedConv1D
 
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']
@@ -19,12 +19,12 @@ __all__ = ['resnet18', 'resnet50', 'resnet101']
 class convKxK(nn.Module):
     def __init__(self, in_planes, out_planes, stride=1, k=9, dilation=1):
         super(convKxK, self).__init__()
-        padding = k // 2
-        self.conv1 = GraphConv2d(in_planes, in_planes, conv='edge', act='relu', norm=None, bias=True)
+        padding = dilation*(k // 2)
+        self.conv1 = GraphConv2d(in_planes, in_planes, conv='edge', act='relu', norm='batch', bias=False)
         self.conv2 = WeightedConv1D(in_planes, out_planes, k, dilation, padding, stride)
 
     def forward(self, x, coords, sigma=0.02, edge_index=None):
-        x = self.conv1(x, edge_index)
+        x = self.conv1(x.unsqueeze(-1), edge_index)
         x = self.conv2(x, coords, sigma)
         return x
 
@@ -42,8 +42,6 @@ class BasicBlock(nn.Module):
         super(BasicBlock, self).__init__()
         if groups != 1 or base_width != 64:
             raise ValueError('BasicBlock only supports groups=1 and base_width=64')
-        if dilation > 1:
-            raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
         norm_layer = nn.BatchNorm1d
         self.sigma = sigma
 
@@ -130,7 +128,7 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
     def __init__(self, block, layers, k, input_size=3, num_classes=40, zero_init_residual=False,
-                 groups=1, width_per_group=64, replace_stride_with_dilation=None, sigma=1.0, knn=9):
+                 groups=1, width_per_group=64, replace_stride_with_dilation=[True, True, True], sigma=1.0, knn=9):
         super(ResNet, self).__init__()
 
         norm_layer = nn.BatchNorm1d
@@ -156,7 +154,7 @@ class ResNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
         # self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
-        self.sigma *= 4
+        # self.sigma *= 4
         self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[0], sigma=self.sigma)
@@ -219,22 +217,21 @@ class ResNet(nn.Module):
         x = self.conv1(x, coords, self.init_sigma, edge_index)
         x = self.bn1(x)
         x = self.relu(x)
-        # print('Size after conv1: {}'.format(x.size()))
+
         # x = self.maxpool(x)
-        # print('Size after maxpool: {}'.format(x.size()))
         # coords = coords[:, :, ::4]
-        x, coords = self.layer1((x, coords, edge_index))
-        # print('Size after layer1: {}'.format(x.size()))
+
+        x, coords, edge_index = self.layer1((x, coords, edge_index))
         low_level_feats = x
+
         edge_index = self.knn_graph(x)
-        x, coords = self.layer2((x, coords, edge_index))
-        # print('Size after layer2: {}'.format(x.size()))
+        x, coords, edge_index = self.layer2((x, coords, edge_index))
+
         edge_index = self.knn_graph(x)
-        x, coords = self.layer3((x, coords, edge_index))
-        # print('Size after layer3: {}'.format(x.size()))
+        x, coords, edge_index = self.layer3((x, coords, edge_index))
+
         edge_index = self.knn_graph(x)
-        x, coords = self.layer4((x, coords, edge_index))
-        # print('Size after layer4: {}'.format(x.size()))
+        x, coords, edge_index = self.layer4((x, coords, edge_index))
 
         return x, low_level_feats, coords
 
