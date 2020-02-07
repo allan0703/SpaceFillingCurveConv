@@ -77,8 +77,9 @@ class Decoder(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
                 torch.nn.init.kaiming_normal_(m.weight)
-            elif isinstance(m, WeightedConv1D):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, MultiOrderWeightedConv1D2):
+                nn.init.kaiming_normal_(m.conv.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.kaiming_normal_(m.pointwise.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, nn.BatchNorm1d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()

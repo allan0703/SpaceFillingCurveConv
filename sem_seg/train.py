@@ -6,7 +6,8 @@ import os
 import numpy as np
 import torch.nn as nn
 
-from tqdm import tqdm
+from tqdm import tqdm, trange
+from hilbertcurve.hilbertcurve import HilbertCurve
 
 from model.deeplab import deeplab
 from model.unet import unet
@@ -92,6 +93,22 @@ def train(dataset, model_dir, writer):
         'num_epochs_since_best_acc': 0
     }
 
+    # compute rotations and hilbert distances
+    rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
+    rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+    rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
+    rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+
+    # p = 7
+    # hilbert_curve = HilbertCurve(p, 3)
+    # grid = np.mgrid[0:2 ** p, 0:2 ** p, 0:2 ** p].reshape(3, -1).T
+    # distances = np.zeros(grid.shape[0])
+    # for i in trange(grid.shape[0], desc='Computing hilbert distances'):
+    #     distances[i] = hilbert_curve.distance_from_coordinates(grid[i, :].astype(int))
+    distances = np.load('meta/hilbert7.npy')
+    distances = torch.from_numpy(distances).to(device, dtype=torch.long)
+
     # now we train!
     for epoch in range(dataset.config.max_epochs):
         for phase in phases:
@@ -108,14 +125,12 @@ def train(dataset, model_dir, writer):
                                                       desc='[{}/{}] {} '.format(epoch + 1, dataset.config.max_epochs,
                                                                                 phase))):
                 data = inputs[0].to(device, dtype=torch.float).permute(0, 2, 1)
-                coords = inputs[1].to(device, dtype=torch.float).permute(0, 2, 1, 3)
+                coords = inputs[1].to(device, dtype=torch.float).permute(0, 2, 1)
                 label = inputs[2].to(device, dtype=torch.long)
-                indices = inputs[3].to(device, dtype=torch.long)
-                reindices = inputs[4].to(device, dtype=torch.long)
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
-                    out = model(data, coords, reindices)
+                    out = model(data, coords, rotations, distances)
                     loss = criterion(out, label)
                     if phase == 'train':
                         optimizer.zero_grad()
