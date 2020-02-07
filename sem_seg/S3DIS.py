@@ -75,11 +75,6 @@ class S3DISDataset(Dataset):
         self.augment = augment
         self.num_features = num_features
         self.data, self.label = data_label
-        self.p = 7
-
-        # compute hilbert order for voxelized space
-        logging.info('Computing hilbert distances...')
-        self.hilbert_curve = HilbertCurve(self.p, 3)
 
     def __len__(self):
         return self.data.shape[0]
@@ -97,22 +92,7 @@ class S3DISDataset(Dataset):
 
             pointcloud[:, :3] = points
 
-        # get coordinates
-        coordinates = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
-
-        # compute hilbert order
-        points_norm = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
-        points_norm /= points_norm.max(axis=0) + 1e-23
-
-        # order points in hilbert order
-        points_voxel = np.floor(points_norm * (2 ** self.p - 1))
-        hilbert_dist = np.zeros(points_voxel.shape[0])
-
-        rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-        rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
-        rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
-        rotation_matrices = [np.eye(3), rotation_x, rotation_y, rotation_z]
-        indices, reindices, multi_coordinates = [], [], []  # reindices
+        coords = pointcloud[:, :3]
 
         # return appropriate number of features
         if self.num_features == 4:
@@ -121,35 +101,12 @@ class S3DISDataset(Dataset):
             pointcloud = np.hstack((np.ones((pointcloud.shape[0], 1)), pointcloud[:, 3:6],
                                     pointcloud[:, 2, np.newaxis]))
         elif self.num_features == 9:
-            min_val = pointcloud[:, :3].min(axis=0)
-            pointcloud = np.hstack((pointcloud[:, :3] - min_val, pointcloud[:, 3:6], pointcloud[:, 6:9]))
+            pointcloud = np.hstack((pointcloud[:, :3], pointcloud[:, 3:6], pointcloud[:, 6:9]))
         else:
             raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
                              .format(self.num_features))
 
-        for num_rotation in range(4):
-            points_voxel_rotation = np.matmul(points_voxel, rotation_matrices[num_rotation]).astype(int)  # 4*n * 3
-
-            if num_rotation:
-                # shift back to the origin
-                points_voxel_rotation += (2 ** self.p - 1)
-                points_voxel_rotation[:, num_rotation - 1] -= (2 ** self.p - 1)
-
-            for i in range(points_voxel.shape[0]):
-                 hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[i, :3].astype(int))
-            idx = np.argsort(hilbert_dist)
-            indices.append(torch.from_numpy(idx))
-            multi_coordinates.append(torch.from_numpy(coordinates[idx, :]))
-
-            # calculate the re-indices
-            index_sort = np.vstack((idx.copy(), np.arange(pointcloud.shape[0]))).transpose()  # n*2
-            index_sort = index_sort[index_sort[:, 0].argsort()]
-            reindices.append(torch.from_numpy(index_sort[:, 1]))
-        indices = torch.stack(indices, dim=-1)  # get n*4
-        multi_coordinates = torch.stack(multi_coordinates, dim=-1)
-        reindices = torch.stack(reindices, dim=-1)
-
-        return pointcloud, multi_coordinates, label, indices, reindices   #  n*c n*3*t n*1 n*4,n*4
+        return pointcloud, coords, label
 
 
 class S3DIS:
@@ -239,13 +196,6 @@ class S3DIS:
 
         if args.bias is not None:
             config.bias = args.bias
-
-        if args.hyperpara_search:
-            config.kernel_size = np.random.choice([3, 5, 9])
-            config.num_feats = np.random.choice([4, 5, 9])  # 4  # np.random.choice([4, 9])
-            config.lr = np.random.choice([1e-3, 1e-4])
-            #config.batch_size = int(np.random.choice([8, 16, 32]))
-            config.sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
 
         config.gpu_index = args.gpu
         config.multi_gpu = args.multi_gpu
@@ -367,8 +317,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    args.root_dir = '/home/wangh0j/data/sfc/S3DIS/raw'
-    args.model_dir = '/home/wangh0j/SFC-Convs/log/'
+    args.root_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/S3DIS/indoor3d_sem_seg_hdf5_data'
+    args.model_dir = '/media/thabetak/a5411846-373b-430e-99ac-01222eae60fd/S3DIS/indoor3d_sem_seg_hdf5_data'
 
     dataset = S3DIS(args)
     dataloaders = dataset.get_dataloaders()
