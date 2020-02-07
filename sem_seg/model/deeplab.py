@@ -1,18 +1,20 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
+import time
 
-from model.xception import AlignedXception
-from model.resnet import resnet18, resnet101
-from model.aspp import aspp
-from model.decoder import decoder
+from .xception import AlignedXception
+from .resnet import resnet18, resnet101
+from .aspp import aspp
+from .decoder import decoder
 
 __all__ = ['deeplab']
 
 
 class DeepLab(nn.Module):
     def __init__(self, backbone='xception', input_size=3, output_stride=16,
-                 num_classes=21, kernel_size=9, sigma=1.0, T=4):
+                 num_classes=21, kernel_size=9, sigma=1.0):
         super(DeepLab, self).__init__()
         self.num_classes = num_classes
         if backbone == 'resnet18':
@@ -29,31 +31,18 @@ class DeepLab(nn.Module):
             self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride, kernel_size=kernel_size)
 
         self.decoder = decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma)
-        self.fusion_multi_conv = nn.Sequential(nn.Conv1d(num_classes*T, 256, 1, padding=1),
-                                               nn.BatchNorm1d(256), nn.ReLU(inplace=True),
-                                               nn.Conv1d(256, 64, 1, padding=1),
-                                               nn.BatchNorm1d(64), nn.ReLU(inplace=True),
-                                               nn.Conv1d(64, num_classes, 1)
-                                               )
 
-    def forward(self, input, multi_coords, indices, reindices):
-        out = []
-
-        decoder_coords = multi_coords[:, :, ::4, :]
-        x, low_level_feat, coords = self.backbone(input, coords)
+    def forward(self, input, coords, rotations, distances):
+        decoder_coords = coords[:, :, ::4]
+        x, low_level_feat, coords = self.backbone(input, coords, rotations, distances)
         # print('Backbone: Output size {} Feat size {}'.format(x.size(), low_level_feat.size()))
-        x = self.aspp(x, coords)
+        x = self.aspp(x, coords, rotations, distances)
         # print('ASPP: Output size {} - {}'.format(x.size(), coords.size()))
-        x = self.decoder(x, low_level_feat, decoder_coords)
+        x = self.decoder(x, low_level_feat, decoder_coords, rotations, distances)
         # print('Decoder: Output size {}'.format(x.size()))
         x = F.interpolate(x, size=input.size(-1), mode='linear', align_corners=True)
 
-        # reorder x
-        x = torch.gather(x, dim=-1, index=reindices[:, :, i].unsqueeze(1).repeat(1, self.num_classes, 1))  # reindices[:,i]
-        out.append(x)
-        out = torch.cat(out, dim=1)  # out : B X CT X N
-        out = self.fusion_multi_conv(out)
-        return out
+        return x
 
 
 def deeplab(backbone='resnet101', input_size=3, output_stride=16, num_classes=21, kernel_size=27, sigma=1.0):
@@ -61,13 +50,41 @@ def deeplab(backbone='resnet101', input_size=3, output_stride=16, num_classes=21
 
 
 if __name__ == '__main__':
-    x = torch.rand((4, 4, 4096, 4), dtype=torch.float)
-    coords = torch.rand((4, 3, 4096, 4), dtype=torch.float)
-    reindices = torch.stack((torch.randperm(4096), torch.randperm(4096),
-                             torch.randperm(4096),torch.randperm(4096)), dim=0)
-    print('Input size {}'.format(x.size()))
-    net = deeplab(input_size=4, num_classes=13, backbone='resnet18', kernel_size=9)
-    out = net(x, coords, reindices)
+    batch_size = 4
+    groups = 4
+    in_channels = 9
+    out_channels = 16
+    num_points = 4096
+    T = 4
+    kernel_size = 9
+    padding = 4
+    dilation = 2
+    stride = 2
+    sigma = 0.5
+    res = 128
+    device = torch.device('cuda:1')
 
+    feats = torch.rand((batch_size, in_channels, num_points), dtype=torch.float).to(device, dtype=torch.float32)
+    coords = torch.rand((batch_size, 3, num_points), dtype=torch.float).to(device, dtype=torch.float32)
+
+    rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
+    rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+    rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
+    rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+
+    distances = torch.randint(res ** 3, (res ** 3,)).to(device, dtype=torch.long)
+
+    print(feats.shape, coords.shape, rotations.shape, distances.shape)
+    print(feats.dtype, coords.dtype, rotations.dtype, distances.dtype)
+    net = deeplab(input_size=in_channels, num_classes=13, backbone='resnet18', kernel_size=kernel_size).to(device)
+
+    start_time = time.time()
+    out = net(feats, coords, rotations, distances)
+    print('Forward took {:f}s'.format(time.time() - start_time))
     print('Output size {}'.format(out.size()))
+
+    start_time = time.time()
+    out.mean().backward()
+    print('Backward took {:f}s'.format(time.time() - start_time))
 

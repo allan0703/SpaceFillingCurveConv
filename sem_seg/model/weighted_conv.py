@@ -119,7 +119,7 @@ class MultiOrderWeightedConv1D2(nn.Module):
                          index=idx.unsqueeze(-2).repeat(1, 1, in_channels, 1))
         coords = torch.gather(coords.unsqueeze(1).repeat(1, 4, 1, 1), dim=-1,
                               index=idx.unsqueeze(-2).repeat(1, 1, 3, 1))
-        # print(x.shape, coords.shape)
+
         out = self.conv(x, coords, sigma)
         # print(out.shape, reindices.shape)
         reindices = torch.arange(num_points, device=x.device).repeat(batch_size, 4, 1)

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import logging
 import time
 
-from .weighted_conv import WeightedConv1D
+from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D2
 
 __all__ = ['decoder']
 
@@ -13,14 +13,16 @@ class DecoderConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, drop, sigma=1.0):
         super(DecoderConv, self).__init__()
         self.sigma = sigma
-        self.conv = WeightedConv1D(in_channels, out_channels, kernel_size=kernel_size,
-                                   stride=1, padding=kernel_size // 2)
+        # self.conv = WeightedConv1D(in_channels, out_channels, kernel_size=kernel_size,
+        #                            stride=1, padding=kernel_size // 2)
+        self.conv = MultiOrderWeightedConv1D2(in_channels, out_channels, kernel_size=kernel_size, dilation=1,
+                                              padding=kernel_size // 2, stride=1)
         self.bn = nn.BatchNorm1d(out_channels)
         self.relu = nn.ReLU()
         self.drop = nn.Dropout(drop)
 
-    def forward(self, x, coords):
-        x = self.relu(self.bn(self.conv(x, coords, self.sigma)))
+    def forward(self, x, coords, rotations, distances):
+        x = self.relu(self.bn(self.conv(x, coords, rotations, distances, self.sigma)))
         x = self.drop(x)
 
         return x
@@ -58,15 +60,15 @@ class Decoder(nn.Module):
         self.conv_out = nn.Conv1d(256, num_classes, kernel_size=1, stride=1)
         self._init_weight()
 
-    def forward(self, x, low_level_feat, coords):
+    def forward(self, x, low_level_feat, coords, rotations, distances):
         low_level_feat = self.conv1(low_level_feat)
         low_level_feat = self.bn1(low_level_feat)
         low_level_feat = self.relu(low_level_feat)
 
         x = F.interpolate(x, size=low_level_feat.size()[-1], mode='linear', align_corners=True)
         x = torch.cat((x, low_level_feat), dim=1)
-        x = self.last_conv1(x, coords)
-        x = self.last_conv2(x, coords)
+        x = self.last_conv1(x, coords, rotations, distances)
+        x = self.last_conv2(x, coords, rotations, distances)
         x = self.conv_out(x)
 
         return x
