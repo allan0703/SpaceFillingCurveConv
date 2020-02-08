@@ -180,7 +180,7 @@ class WeightedConv1D(WeightedConv):
 
 
 class SeparableWeightedConv1D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dilation=1, padding=0, stride=1):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation=1, padding=0, stride=1, T=4):
         super(SeparableWeightedConv1D, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -190,7 +190,7 @@ class SeparableWeightedConv1D(nn.Module):
         self.padding = (padding * dilation, 0)
         self.stride = (stride, 1)
 
-        self.weight = nn.Parameter(torch.Tensor(self.out_channels, self.in_channels, self.kernel_size[0]))
+        self.weight = nn.Parameter(torch.Tensor(T, self.out_channels, self.in_channels, self.kernel_size[0]))
 
     def forward(self, x, coords, sigma):
         """
@@ -216,7 +216,8 @@ class SeparableWeightedConv1D(nn.Module):
 
         windows = windows * dist_weights
 
-        out = windows.transpose(2, 3).matmul(self.weight.view(self.weight.size(0), -1).t().unsqueeze(0)).transpose(3, 2)
+        out = windows.transpose(2, 3).matmul(self.weight.view(self.weight.shape[0],
+                                                              self.weight.shape[1], -1).transpose(2, 1)).transpose(3, 2)
 
         return out
 
