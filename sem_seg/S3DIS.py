@@ -92,7 +92,7 @@ class S3DISDataset(Dataset):
 
             pointcloud[:, :3] = points
 
-        coords = pointcloud[:, :3]
+        coords = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
 
         # return appropriate number of features
         if self.num_features == 4:
@@ -101,7 +101,8 @@ class S3DISDataset(Dataset):
             pointcloud = np.hstack((np.ones((pointcloud.shape[0], 1)), pointcloud[:, 3:6],
                                     pointcloud[:, 2, np.newaxis]))
         elif self.num_features == 9:
-            pointcloud = np.hstack((pointcloud[:, :3], pointcloud[:, 3:6], pointcloud[:, 6:9]))
+            min_val = pointcloud[:, :3].min(axis=0)
+            pointcloud = np.hstack((pointcloud[:, :3] - min_val, pointcloud[:, 3:6], pointcloud[:, 6:9]))
         else:
             raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
                              .format(self.num_features))
@@ -252,6 +253,8 @@ class S3DIS:
         # now we split data into train or test based on test area
         test_idx = ['Area_{}'.format(self.config.test_area) in x for x in room_list]
         train_idx = ['Area_{}'.format(self.config.test_area) not in x for x in room_list]
+        # test_idx = np.arange(20, 40)
+        # train_idx = np.arange(20)
 
         train_data = all_data[train_idx, ...]
         train_label = all_label[train_idx, ...]

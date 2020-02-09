@@ -44,6 +44,7 @@ def train(dataset, model_dir, writer):
     if dataset.config.multi_gpu:
         logging.info('Training on multi-GPU mode with {} devices'.format(torch.cuda.device_count()))
     device = torch.device('cuda:{}'.format(dataset.config.gpu_index))
+    # device = torch.device('cpu')
 
     if dataset.config.model == 'unet':
         model = unet(input_size=dataset.config.num_feats, num_classes=dataset.config.num_classes,
@@ -100,12 +101,15 @@ def train(dataset, model_dir, writer):
     rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
     rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
 
+    # rotations = torch.eye(3).unsqueeze(0).to(device, dtype=torch.float32)
+
     # p = 7
     # hilbert_curve = HilbertCurve(p, 3)
     # grid = np.mgrid[0:2 ** p, 0:2 ** p, 0:2 ** p].reshape(3, -1).T
     # distances = np.zeros(grid.shape[0])
     # for i in trange(grid.shape[0], desc='Computing hilbert distances'):
     #     distances[i] = hilbert_curve.distance_from_coordinates(grid[i, :].astype(int))
+    res = 128
     distances = np.load('meta/hilbert7.npy')
     distances = torch.from_numpy(distances).to(device, dtype=torch.long)
 
@@ -127,6 +131,18 @@ def train(dataset, model_dir, writer):
                 data = inputs[0].to(device, dtype=torch.float).permute(0, 2, 1)
                 coords = inputs[1].to(device, dtype=torch.float).permute(0, 2, 1)
                 label = inputs[2].to(device, dtype=torch.long)
+
+                rot_points = coords - coords.min(dim=2)[0].unsqueeze(2)
+                rot_points = rot_points / (rot_points.max(dim=2)[0].unsqueeze(2) + 1e-23)
+                rot_points = torch.floor(rot_points * (res - 1)).int()
+
+                idx = (res ** 2) * rot_points[:, 0, :] + res * rot_points[:, 1, :] + rot_points[:, 2, :]
+                hilbert_dist = distances[idx.long()]
+                idx = hilbert_dist.argsort(dim=1)
+
+                data = torch.gather(data, dim=-1, index=idx.unsqueeze(1).repeat(1, data.shape[1], 1))
+                coords = torch.gather(coords, dim=-1, index=idx.unsqueeze(1).repeat(1, coords.shape[1], 1))
+                label = torch.gather(label, dim=-1, index=idx)
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):

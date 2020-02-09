@@ -4,7 +4,7 @@ import logging
 import time
 import numpy as np
 
-from .weighted_conv import MultiOrderWeightedConv1D, MultiOrderWeightedConv1D2
+from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D
 
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']
@@ -21,8 +21,10 @@ def convKxK(in_planes, out_planes, stride=1, k=9, dilation=1):
     """Kx1 weighted convolution"""
     padding = k // 2
 
-    return MultiOrderWeightedConv1D2(in_planes, out_planes, kernel_size=k, dilation=dilation,
-                                     padding=padding, stride=stride)
+    # return WeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation,
+    #                       padding=padding, stride=stride)
+    return MultiOrderWeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation,
+                                    padding=padding, stride=stride)
 
 
 def conv1x1(in_planes, out_planes, stride=1):
@@ -148,12 +150,13 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
+        self.initial_sigma = sigma
 
-        self.conv1 = convKxK(input_size, self.inplanes, stride=2, k=9, dilation=1)
+        self.conv1 = convKxK(input_size, self.inplanes, stride=2, k=49, dilation=1)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-
-        self.sigma *= 2
+        self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
+        self.sigma *= 4
         self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[0], sigma=self.sigma)
@@ -169,9 +172,8 @@ class ResNet(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, MultiOrderWeightedConv1D2):
-                nn.init.kaiming_normal_(m.conv.weight, mode='fan_out', nonlinearity='relu')
-                nn.init.kaiming_normal_(m.pointwise.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, WeightedConv1D):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, (nn.BatchNorm1d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -213,13 +215,13 @@ class ResNet(nn.Module):
         # x, coords, rotations, distances = inputs
         # print('Size at input: {}'.format(x.size()))
         # x = self.conv1(x)
-        x = self.conv1(x, coords, rotations, distances)
+        x = self.conv1(x, coords, rotations, distances, self.initial_sigma)
         x = self.bn1(x)
         x = self.relu(x)
         # print('Size after conv1: {}'.format(x.size()))
-        # x = self.maxpool(x)
+        x = self.maxpool(x)
         # print('Size after maxpool: {}'.format(x.size()))
-        coords = coords[:, :, ::2]
+        coords = coords[:, :, ::4]
         x, coords, _, _ = self.layer1((x, coords, rotations, distances))
         # print('Size after layer1: {}'.format(x.size()))
         low_level_feats = x
