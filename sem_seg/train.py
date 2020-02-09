@@ -94,11 +94,13 @@ def train(dataset, model_dir, writer):
     }
 
     # compute rotations and hilbert distances
-    rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-    rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
-    rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
-    rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
-    rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+    # rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    # rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
+    # rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+    # rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
+    # rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+
+    rotations = torch.eye(3).unsqueeze(0).to(device, dtype=torch.float32)
 
     # p = 7
     # hilbert_curve = HilbertCurve(p, 3)
@@ -106,6 +108,7 @@ def train(dataset, model_dir, writer):
     # distances = np.zeros(grid.shape[0])
     # for i in trange(grid.shape[0], desc='Computing hilbert distances'):
     #     distances[i] = hilbert_curve.distance_from_coordinates(grid[i, :].astype(int))
+    res = 128
     distances = np.load('meta/hilbert7.npy')
     distances = torch.from_numpy(distances).to(device, dtype=torch.long)
 
@@ -127,6 +130,18 @@ def train(dataset, model_dir, writer):
                 data = inputs[0].to(device, dtype=torch.float).permute(0, 2, 1)
                 coords = inputs[1].to(device, dtype=torch.float).permute(0, 2, 1)
                 label = inputs[2].to(device, dtype=torch.long)
+
+                # rot_points = coords - coords.min(dim=1)[0].unsqueeze(1)
+                # rot_points = rot_points / (rot_points.max(dim=1)[0].unsqueeze(1) + 1e-23)
+                # rot_points = torch.floor(rot_points * (res - 1)).int()
+                #
+                # idx = (res ** 2) * rot_points[:, 0, :] + res * rot_points[:, 1, :] + rot_points[:, 2, :]
+                # hilbert_dist = distances[idx.long()]
+                # idx = hilbert_dist.argsort(dim=1)
+                #
+                # data = torch.gather(data, dim=-1, index=idx.unsqueeze(1).repeat(1, data.shape[1], 1))
+                # coords = torch.gather(coords, dim=-1, index=idx.unsqueeze(1).repeat(1, coords.shape[1], 1))
+                # label = torch.gather(label, dim=-1, index=idx)
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):

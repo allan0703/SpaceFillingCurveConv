@@ -14,8 +14,8 @@ class ASPPConv(nn.Module):
     def __init__(self, in_channels, out_channels, dilation, kernel_size=9, sigma=1.0):
         super(ASPPConv, self).__init__()
         self.sigma = sigma
-        # self.conv = WeightedConv1D(in_channels, out_channels, kernel_size, padding=dilation * (kernel_size // 2),
-        #                            dilation=dilation)
+        # self.conv = WeightedConv1D(in_channels, out_channels, kernel_size=kernel_size, dilation=dilation,
+        #                            padding=kernel_size // 2, stride=1)
         self.conv = MultiOrderWeightedConv1D2(in_channels, out_channels, kernel_size=kernel_size, dilation=dilation,
                                               padding=kernel_size // 2, stride=1)
         self.bn = nn.BatchNorm1d(out_channels)
@@ -91,9 +91,8 @@ class ASPP(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, MultiOrderWeightedConv1D2):
-                nn.init.kaiming_normal_(m.conv.weight, mode='fan_out', nonlinearity='relu')
-                nn.init.kaiming_normal_(m.pointwise.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, WeightedConv1D):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, (nn.BatchNorm1d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
