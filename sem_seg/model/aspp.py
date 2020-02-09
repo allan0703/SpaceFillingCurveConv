@@ -5,7 +5,7 @@ import logging
 import time
 import numpy as np
 
-from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D2
+from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D
 
 __all__ = ['aspp']
 
@@ -16,8 +16,8 @@ class ASPPConv(nn.Module):
         self.sigma = sigma
         # self.conv = WeightedConv1D(in_channels, out_channels, kernel_size=kernel_size, dilation=dilation,
         #                            padding=kernel_size // 2, stride=1)
-        self.conv = MultiOrderWeightedConv1D2(in_channels, out_channels, kernel_size=kernel_size, dilation=dilation,
-                                              padding=kernel_size // 2, stride=1)
+        self.conv = MultiOrderWeightedConv1D(in_channels, out_channels, kernel_size=kernel_size, dilation=dilation,
+                                             padding=kernel_size // 2, stride=1)
         self.bn = nn.BatchNorm1d(out_channels)
         self.relu = nn.ReLU()
 

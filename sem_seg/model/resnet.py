@@ -4,7 +4,7 @@ import logging
 import time
 import numpy as np
 
-from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D2
+from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D
 
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']
@@ -23,8 +23,8 @@ def convKxK(in_planes, out_planes, stride=1, k=9, dilation=1):
 
     # return WeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation,
     #                       padding=padding, stride=stride)
-    return MultiOrderWeightedConv1D2(in_planes, out_planes, kernel_size=k, dilation=dilation,
-                                     padding=padding, stride=stride)
+    return MultiOrderWeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation,
+                                    padding=padding, stride=stride)
 
 
 def conv1x1(in_planes, out_planes, stride=1):
