@@ -78,19 +78,19 @@ class UNet(nn.Module):
 
         bottleneck, coordsb = self.bottleneck(enc4, coords4, rotations, distances, 16 * self.sigma)
 
-        dec4 = self.upconv4(bottleneck, coords4, 8 * self.sigma)
+        dec4 = self.upconv4(bottleneck, coords4, 16 * self.sigma)
         dec4 = torch.cat((dec4, enc4), dim=1)
         dec4, _ = self.decoder4(dec4, coords4, rotations, distances, 8 * self.sigma)
 
-        dec3 = self.upconv3(dec4, coords3, 4 * self.sigma)
+        dec3 = self.upconv3(dec4, coords3, 8 * self.sigma)
         dec3 = torch.cat((dec3, enc3), dim=1)
         dec3, _ = self.decoder3(dec3, coords3, rotations, distances, 4 * self.sigma)
 
-        dec2 = self.upconv2(dec3, coords2, 2 * self.sigma)
+        dec2 = self.upconv2(dec3, coords2, 4 * self.sigma)
         dec2 = torch.cat((dec2, enc2), dim=1)
         dec2, _ = self.decoder2(dec2, coords2, rotations, distances, 2 * self.sigma)
 
-        dec1 = self.upconv1(dec2, coords, self.sigma)
+        dec1 = self.upconv1(dec2, coords, 2 * self.sigma)
         dec1 = torch.cat((dec1, enc1), dim=1)
         dec1, _ = self.decoder1(dec1, coords, rotations, distances, self.sigma)
 
