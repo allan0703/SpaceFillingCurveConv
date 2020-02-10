@@ -2,9 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import logging
+import numpy as np
 import time
 
-from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D
+from weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D
 
 __all__ = ['decoder']
 
@@ -65,8 +66,13 @@ class Decoder(nn.Module):
         low_level_feat = self.bn1(low_level_feat)
         low_level_feat = self.relu(low_level_feat)
 
-        x = F.interpolate(x, size=low_level_feat.size()[-1], mode='linear', align_corners=True)
+        x = F.interpolate(torch.cat((x, coords[:, :, ::8]), dim=1),
+                          size=low_level_feat.size()[-1], mode='linear', align_corners=True)
+        print(x[:, -3:, :])
+        x = x[:, :-3, :]
+        print(x.size())
         x = torch.cat((x, low_level_feat), dim=1)
+        print(x.size(), coords.size())
         x = self.last_conv1(x, coords, rotations, distances)
         x = self.last_conv2(x, coords, rotations, distances)
         x = self.conv_out(x)
@@ -86,3 +92,31 @@ class Decoder(nn.Module):
 
 def decoder(num_classes, backbone, kernel_size, sigma):
     return Decoder(num_classes, backbone, kernel_size, sigma)
+
+
+if __name__ == '__main__':
+    device = torch.device('cpu')
+    res = 128
+    feats = torch.rand((4, 256, 128), dtype=torch.float).to(device)
+    low_level_feat = torch.rand((4, 64, 1024), dtype=torch.float).to(device)
+    coords = torch.rand((4, 3, 1024), dtype=torch.float).to(device)
+
+    rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
+    rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+    rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
+    rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+
+    distances = torch.randint(res ** 3, (res ** 3,)).to(device, dtype=torch.long)
+
+    k = 3
+
+    net = decoder(num_classes=13, backbone='resnet18', kernel_size=k, sigma=1.0).to(device)
+
+    start_time = time.time()
+    out = net(feats, low_level_feat, coords, rotations, distances)
+    print('It took {:f}s'.format(time.time() - start_time))
+    # out = out.mean(dim=1)
+    print('Output size {}'.format(out.size()))
+
+    # out.mean().backward()

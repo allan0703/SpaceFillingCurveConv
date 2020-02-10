@@ -1,93 +1,10 @@
 import torch
 from torch import nn
-from torch.nn import functional as F, Sequential as Seq, ModuleList as ModList
+from torch.nn import functional as F, ModuleList as ModList
 import numpy as np
 import time
 
 __all__ = ['WeightedConv1D', 'MultiOrderWeightedConv1D']
-
-
-class MultiSeq(Seq):
-    def __init__(self, *args):
-        super(MultiSeq, self).__init__(*args)
-
-    def forward(self, *inputs):
-        for module in self._modules.values():
-            if type(inputs) == tuple:
-                inputs = module(*inputs)
-            else:
-                inputs = module(inputs)
-        return inputs
-
-
-class MultiOrderWeightedConv1D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, T=4):
-        super(MultiOrderWeightedConv1D, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-
-        self.kernel_size = kernel_size
-        self.dilation = dilation
-        self.padding = padding
-        self.stride = stride
-
-        convs = []
-        bns = []
-        for i in range(T):
-            convs.append(WeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
-                                        dilation=dilation, padding=padding, stride=1))
-            bns.append(nn.BatchNorm1d(out_channels))
-
-        self.convs = ModList(convs)
-        self.bns = ModList(bns)
-        # self.conv = WeightedConv1D(in_channels=in_channels, out_channels=in_channels, kernel_size=kernel_size,
-        #                            dilation=dilation, padding=padding, stride=1)
-        # self.conv = WeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
-        #                            dilation=dilation, padding=padding, stride=1)
-        # self.bn = nn.BatchNorm1d(out_channels)
-        self.pointwise = nn.Conv1d(int(out_channels * T), out_channels, 1, stride=stride)
-
-    def forward(self, x, coords, rotations, distances, sigma=0.05, res=128):
-        """
-        :param x: the point cloud in the original order [B, C, N]
-        :param coords: corresponding 3D coordinates of features in x [B, 3, N]
-        :param rotations: T rotation matrices to compute multi-level hilbert orders [T, 3, 3]
-        :param distances: Hilbert distances for full space [M], M = (2 ^ p) ^ 3, where p is Hilbert order
-        :param sigma: sigma value for weighted convolution
-        :param res: grid resolution used in hilbert distances
-        :return:
-        """
-        # print(x.shape, indices.shape, indices.view(x.shape[0], -1).unsqueeze(1).repeat(1, x.shape[1], 1).shape)
-        batch_size, in_channels, num_points = x.shape
-        in_coords = coords.shape[1]
-        out = []
-        for i in range(rotations.shape[0]):
-            rot_points = coords.transpose(2, 1).matmul(rotations[i, ...])
-            rot_points = rot_points - rot_points.min(dim=1)[0].unsqueeze(1)
-            rot_points = rot_points / (rot_points.max(dim=1)[0].unsqueeze(1) + 1e-23)
-            rot_points = torch.floor(rot_points * (res - 1)).int()
-
-            idx = (res ** 2) * rot_points[:, :, 0] + res * rot_points[:, :, 1] + rot_points[:, :, 2]
-            hilbert_dist = distances[idx.long()]
-            idx = hilbert_dist.argsort(dim=1)
-
-            feats = torch.gather(x, dim=-1, index=idx.unsqueeze(1).repeat(1, in_channels, 1))
-            xyz = torch.gather(coords, dim=-1, index=idx.unsqueeze(1).repeat(1, in_coords, 1))
-
-            result = self.bns[i](self.convs[i](feats, xyz, sigma))
-            # result = self.bn(self.conv(feats, xyz, sigma))
-            # result = self.conv(feats, xyz, sigma)
-            # out.append(result)
-
-            reidx = torch.arange(num_points, device=x.device).repeat(batch_size, 1)
-            reidx = torch.gather(reidx, dim=-1, index=idx.argsort())
-
-            out.append(torch.gather(result, dim=-1, index=reidx.unsqueeze(1).repeat(1, result.shape[1], 1)))
-
-        out = torch.cat(out, dim=1)
-        out = self.pointwise(out)
-
-        return out
 
 
 class WeightedConv(nn.Module):
@@ -180,6 +97,96 @@ class SeparableWeightedConv1D(nn.Module):
         return out
 
 
+class MultiOrderWeightedConv1D(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, T=4):
+        super(MultiOrderWeightedConv1D, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
+        self.kernel_size = kernel_size
+        self.dilation = dilation
+        self.padding = padding
+        self.stride = stride
+        self.T = T
+
+        # convs = []
+        # bns = []
+        # for i in range(T):
+        #     convs.append(WeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
+        #                                 dilation=dilation, padding=padding, stride=1))
+        #     bns.append(nn.BatchNorm1d(out_channels))
+        #
+        # self.convs = ModList(convs)
+        # self.bns = ModList(bns)
+
+        self.conv = SeparableWeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
+                                            dilation=dilation, padding=padding, stride=1, T=T)
+        self.pointwise = nn.Conv1d(int(out_channels * T), out_channels, 1, stride=stride)
+        self.bn = nn.BatchNorm1d(out_channels)
+
+    def forward(self, x, coords, rotations, distances, sigma=0.05, res=128):
+        """
+        :param x: the point cloud in the original order [B, C, N]
+        :param coords: corresponding 3D coordinates of features in x [B, 3, N]
+        :param rotations: T rotation matrices to compute multi-level hilbert orders [T, 3, 3]
+        :param distances: Hilbert distances for full space [M], M = (2 ^ p) ^ 3, where p is Hilbert order
+        :param sigma: sigma value for weighted convolution
+        :param res: grid resolution used in hilbert distances
+        :return:
+        """
+        # # print(x.shape, indices.shape, indices.view(x.shape[0], -1).unsqueeze(1).repeat(1, x.shape[1], 1).shape)
+        batch_size, in_channels, num_points = x.shape
+        in_coords = coords.shape[1]
+        # out = []
+        # for i in range(rotations.shape[0]):
+        #     rot_points = coords.transpose(2, 1).matmul(rotations[i, ...])
+        #     rot_points = rot_points - rot_points.min(dim=1)[0].unsqueeze(1)
+        #     rot_points = rot_points / (rot_points.max(dim=1)[0].unsqueeze(1) + 1e-23)
+        #     rot_points = torch.floor(rot_points * (res - 1)).int()
+        #
+        #     idx = (res ** 2) * rot_points[:, :, 0] + res * rot_points[:, :, 1] + rot_points[:, :, 2]
+        #     hilbert_dist = distances[idx.long()]
+        #     idx = hilbert_dist.argsort(dim=1)
+        #
+        #     feats = torch.gather(x, dim=-1, index=idx.unsqueeze(1).repeat(1, in_channels, 1))
+        #     xyz = torch.gather(coords, dim=-1, index=idx.unsqueeze(1).repeat(1, in_coords, 1))
+        #
+        #     result = self.bns[i](self.convs[i](feats, xyz, sigma))
+        #     # result = self.bn(self.conv(feats, xyz, sigma))
+        #     # result = self.conv(feats, xyz, sigma)
+        #     # out.append(result)
+        #
+        #     reidx = torch.arange(num_points, device=x.device).repeat(batch_size, 1)
+        #     reidx = torch.gather(reidx, dim=-1, index=idx.argsort())
+        #
+        #     out.append(torch.gather(result, dim=-1, index=reidx.unsqueeze(1).repeat(1, result.shape[1], 1)))
+        #
+        # out = torch.cat(out, dim=1)
+        rot_points = coords.transpose(2, 1).unsqueeze(1).matmul(rotations)
+        rot_points = rot_points - rot_points.min(dim=2)[0].unsqueeze(2)
+        rot_points = rot_points / (rot_points.max(dim=2)[0].unsqueeze(2) + 1e-23)
+        rot_points = torch.floor(rot_points * (res - 1)).int()
+
+        idx = (res ** 2) * rot_points[:, :, :, 0] + res * rot_points[:, :, :, 1] + rot_points[:, :, :, 2]
+        hilbert_dist = distances[idx.long()]
+        idx = hilbert_dist.argsort(dim=2)
+
+        x = torch.gather(x.unsqueeze(1).repeat(1, self.T, 1, 1),
+                         dim=-1, index=idx.unsqueeze(-2).repeat(1, 1, in_channels, 1))
+        coords = torch.gather(coords.unsqueeze(1).repeat(1, self.T, 1, 1), dim=-1,
+                              index=idx.unsqueeze(-2).repeat(1, 1, in_coords, 1))
+
+        reidx = torch.arange(num_points, device=x.device).repeat(batch_size, self.T, 1)
+        reidx = torch.gather(reidx, dim=-1, index=idx.argsort())
+
+        out = self.conv(x, coords, sigma)
+        out = torch.gather(out, dim=-1, index=reidx.unsqueeze(-2).repeat(1, 1, out.shape[2], 1))
+        out = out.reshape(batch_size, -1, out.shape[3])
+        out = self.bn(self.pointwise(out))
+
+        return out
+
+
 if __name__ == '__main__':
     batch_size = 16
     groups = 4
@@ -189,11 +196,11 @@ if __name__ == '__main__':
     T = 4
     kernel_size = 9
     padding = 4
-    dilation = 2
-    stride = 2
+    dilation = 1
+    stride = 1
     sigma = 0.5
     res = 128
-    device = torch.device('cuda:1')
+    device = torch.device('cuda:0')
 
     feats = torch.rand((batch_size, in_channels, num_points), dtype=torch.float).to(device, dtype=torch.float32)
     coords = torch.rand((batch_size, 3, num_points), dtype=torch.float).to(device, dtype=torch.float32)

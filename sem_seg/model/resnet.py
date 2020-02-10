@@ -129,7 +129,7 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, k, input_size=3, num_classes=40, zero_init_residual=False,
+    def __init__(self, block, layers, k, input_size=3, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None, sigma=1.0):
         super(ResNet, self).__init__()
 
@@ -166,8 +166,6 @@ class ResNet(nn.Module):
         self.sigma *= 2
         self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[2], sigma=self.sigma)
-        self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
@@ -297,7 +295,7 @@ if __name__ == '__main__':
     print(feats.shape, coords.shape, rotations.shape, distances.shape)
     print(feats.dtype, coords.dtype, rotations.dtype, distances.dtype)
 
-    net = resnet18(kernel_size=kernel_size, input_size=in_channels, num_classes=40).to(device)
+    net = resnet18(kernel_size=kernel_size, input_size=in_channels).to(device)
 
     start_time = time.time()
     out, low_level_feats, out_coords = net(feats, coords, rotations, distances)

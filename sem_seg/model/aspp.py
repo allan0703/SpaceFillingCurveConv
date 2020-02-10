@@ -48,7 +48,7 @@ class ASPPPooling(nn.Module):
         x = self.relu(x)
         # print('Interpolating with size {}'.format(size))
         # print('Size of x before interpolate {}'.format(x.size()))
-        x = F.interpolate(x, size=size, mode='linear', align_corners=False)
+        x = F.interpolate(x, size=size, mode='linear', align_corners=True)
         # print('Size of x after interpolate {}'.format(x.size()))
         return x
 
