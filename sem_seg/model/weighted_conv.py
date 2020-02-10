@@ -187,6 +187,57 @@ class MultiOrderWeightedConv1D(nn.Module):
         return out
 
 
+class WeightedConvTranspose(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride):
+        super(WeightedConvTranspose, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
+        self.kernel_size = kernel_size
+        self.dilation = dilation
+        self.padding = padding
+        self.stride = stride
+
+        self.weight = nn.Parameter(torch.Tensor(self.out_channels, self.in_channels, self.kernel_size[0]))
+
+    def forward(self, x, coords, sigma):
+        x_t = torch.zeros((x.shape[0], x.shape[1], self.stride[0] * x.shape[2], self.stride[1] * x.shape[3]),
+                          dtype=x.dtype, device=x.device)
+        x_t[:, :, ::self.stride[0], ::self.stride[1]] = x
+
+        # coords_t = torch.zeros((coords.shape[0], coords.shape[1], self.stride[0] * coords.shape[2],
+        #                         self.stride[1] * coords.shape[3]), dtype=coords.dtype, device=coords.device)
+        # coords_t[:, :, ::self.stride[0], ::self.stride[1]] = coords
+
+        windows = F.unfold(x_t, kernel_size=self.kernel_size, padding=self.padding,
+                           dilation=self.dilation, stride=1)
+        dist_weights = F.unfold(coords, kernel_size=self.kernel_size, padding=self.padding,
+                                dilation=self.dilation, stride=1)
+
+        dist_weights = dist_weights.view(x.shape[0], 3, self.kernel_size[0], -1)
+        dist_weights = dist_weights - dist_weights[:, :, self.kernel_size[0] // 2, :].unsqueeze(-2)
+        dist_weights = 1 - torch.sqrt(torch.sum(dist_weights ** 2, dim=1)) / sigma
+        dist_weights[dist_weights < 0] = 0.0
+        dist_weights = dist_weights.repeat(1, self.in_channels, 1)
+
+        windows = windows * dist_weights
+
+        out = windows.transpose(1, 2).matmul(self.weight.view(self.weight.size(0), -1).t()).transpose(1, 2)
+
+        return out
+
+
+class WeightedConvTranspose1D(WeightedConvTranspose):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation=1, padding=0, stride=1):
+        super(WeightedConvTranspose1D, self).__init__(in_channels, out_channels, (kernel_size, 1),
+                                                      (dilation, 1), (padding * dilation, 0), (stride, 1))
+
+    def forward(self, x, coords, sigma=0.08):
+        out = super().forward(x.unsqueeze(-1), coords.unsqueeze(-1), sigma)
+
+        return out.squeeze(-1)
+
+
 if __name__ == '__main__':
     batch_size = 16
     groups = 4
