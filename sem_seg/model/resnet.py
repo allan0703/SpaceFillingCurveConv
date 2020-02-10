@@ -227,7 +227,7 @@ class ResNet(nn.Module):
         # edge_index = self.knn_graph(x)
         x, coords, edge_index = self.layer2((x, coords, edge_index))
 
-        edge_index = self.knn_graph(x)
+        # edge_index = self.knn_graph(x)
         x, coords, edge_index = self.layer3((x, coords, edge_index))
 
         # edge_index = self.knn_graph(x)
