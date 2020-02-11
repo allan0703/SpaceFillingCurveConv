@@ -100,6 +100,9 @@ def train(dataset, model_dir, writer):
     rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
     rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
     rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+    rotations = rotations[:args.num_rotations, ...]
+    if len(rotations.shape) < 3:
+        rotations = rotations.unsqueeze(0)
 
     # rotations = torch.eye(3).unsqueeze(0).to(device, dtype=torch.float32)
 
@@ -261,7 +264,9 @@ if __name__ == '__main__':
     parser.add_argument('--kernel_size', default=None, type=int,
                         help='odd value for kernel size')
     parser.add_argument('--num_feats', default=None, type=int,
-                        help='number of input features to use (4, 5, or 9')
+                        help='number of input features to use (4, 5, or 9)')
+    parser.add_argument('--num_rotations', default=1, type=int,
+                        help='number of rotations used in hilbert order computations')
     parser.add_argument('--batch_size', default=None, type=int,
                         help='batch size for training')
     parser.add_argument('--lr', default=None, type=float,

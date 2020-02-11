@@ -8,6 +8,7 @@ from .xception import AlignedXception
 from .resnet import resnet18, resnet101
 from .aspp import aspp
 from .decoder import decoder
+from .weighted_conv import weighted_interpolation
 
 __all__ = ['deeplab']
 
@@ -33,14 +34,15 @@ class DeepLab(nn.Module):
         self.decoder = decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma)
 
     def forward(self, input, coords, rotations, distances):
-        decoder_coords = coords[:, :, ::4]
+        original_coords = coords
         x, low_level_feat, coords = self.backbone(input, coords, rotations, distances)
         # print('Backbone: Output size {} Feat size {}'.format(x.size(), low_level_feat.size()))
         x = self.aspp(x, coords, rotations, distances)
         # print('ASPP: Output size {} - {}'.format(x.size(), coords.size()))
-        x = self.decoder(x, low_level_feat, decoder_coords, rotations, distances)
+        x = self.decoder(x, low_level_feat, original_coords[:, :, ::4], rotations, distances)
         # print('Decoder: Output size {}'.format(x.size()))
-        x = F.interpolate(x, size=input.size(-1), mode='linear', align_corners=True)
+        # x = F.interpolate(x, size=input.size(-1), mode='linear', align_corners=True)
+        x = weighted_interpolation(x, original_coords)
 
         return x
 
