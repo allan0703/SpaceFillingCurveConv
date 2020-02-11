@@ -4,7 +4,43 @@ from torch.nn import functional as F, ModuleList as ModList
 import numpy as np
 import time
 
-__all__ = ['WeightedConv1D', 'MultiOrderWeightedConv1D']
+__all__ = ['WeightedConv1D', 'MultiOrderWeightedConv1D', 'weighted_interpolation']
+
+
+def weighted_interpolation(in_feats, coords):
+    """
+    Perform weighted interpolation of features using given coordinates
+    to compute weights. Interpolation is done accross the last dimension.
+    If in_feats is of size BxFxN, then coords must be Bx3xM, where M > N,
+    and M / N is an integer which defines the scaling factor. The output
+    is of size BxFxM.
+
+    :param in_feats: features to be upsampled [BxFxN]
+    :param coords: coordinates in upsampling space [Bx3xM]
+    :return: upsampled features [BxFxM]
+    """
+    scale_factor = coords.shape[-1] // in_feats.shape[-1]
+
+    # get the before and after coordinates of each point in current space
+    before = coords[:, :, ::scale_factor].repeat_interleave(scale_factor, dim=-1)
+    after = torch.cat((coords[:, :, scale_factor::scale_factor], coords[:, :, -1].unsqueeze(-1)),
+                      dim=-1).repeat_interleave(scale_factor, dim=-1)
+
+    # compute weights with values inverse to distance
+    before = torch.exp(-torch.sqrt(torch.sum((coords - before) ** 2, dim=1)))
+    after = torch.exp(-torch.sqrt(torch.sum((coords - after) ** 2, dim=1)))
+    # normalize weights for each point
+    den = before + after
+    before /= den
+    after /= den
+
+    # repeat features for easier computations
+    feats_before = in_feats.repeat_interleave(scale_factor, dim=-1)
+    feats_after = torch.cat((in_feats[:, :, 1:], in_feats[:, :, -1].unsqueeze(-1)),
+                            dim=-1).repeat_interleave(scale_factor, dim=-1)
+
+    # return weighted interpolation
+    return before.unsqueeze(1) * feats_before + after.unsqueeze(1) * feats_after
 
 
 class WeightedConv(nn.Module):
@@ -98,7 +134,7 @@ class SeparableWeightedConv1D(nn.Module):
 
 
 class MultiOrderWeightedConv1D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, T=4):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation, padding, stride, T=1):
         super(MultiOrderWeightedConv1D, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -296,8 +332,8 @@ if __name__ == '__main__':
     #                                 dilation=dilation, padding=padding, stride=stride).to(device)
     # conv = SeparableWeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
     #                                dilation=dilation, padding=padding, stride=stride, groups=T).to(device)
-    conv = MultiOrderWeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
-                                    dilation=dilation, padding=padding, stride=stride, T=T).to(device)
+    # conv = MultiOrderWeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
+    #                                 dilation=dilation, padding=padding, stride=stride, T=T).to(device)
     #
     # # feats = torch.rand((batch_size, groups, in_channels, num_points), dtype=torch.float)
     # # coords = torch.rand((batch_size, groups, 3, num_points), dtype=torch.float)
@@ -308,9 +344,11 @@ if __name__ == '__main__':
     # # N = 1
     # # for _ in range(N):
     # # out = conv(feats, coords, indices, reindices)
-    out = conv(feats, coords, rotations, distances, sigma, res)
+    # out = conv(feats, coords, rotations, distances, sigma, res)
     # out.mean().backward()
-    #
+    scale_factor = 8
+    out = weighted_interpolation(feats[:, :, ::scale_factor], coords)
+
     print('Time elapsed: {:f}s'.format((time.time() - start_time)))
     print(out.shape)
     # out = torch.gather(out, dim=-1, index=reindices.unsqueeze(2).repeat(1, 1, out.shape[2], 1))
