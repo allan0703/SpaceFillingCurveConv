@@ -147,7 +147,7 @@ class ResNet(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
 
-        self.knn_graph = DilatedKnn2d(knn, 1, self_loop=False)
+        # self.knn_graph = DilatedKnn2d(knn, 1, self_loop=False)
 
         self.conv1 = convKxK(input_size, self.inplanes, stride=1, k=9, dilation=1)
         self.bn1 = norm_layer(self.inplanes)
@@ -210,10 +210,10 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x, coords):
+    def forward(self, x, coords, edge_index):
         # print('Size at input: {}'.format(x.size()))
         # x = self.conv1(x)
-        edge_index = self.knn_graph(coords)
+        # edge_index = self.knn_graph(coords)
         # todo: replace knn_graph by Z-Color SFC neighbors
         x = self.conv1(x, coords, self.init_sigma, edge_index)
         x = self.bn1(x)

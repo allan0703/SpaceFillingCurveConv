@@ -110,10 +110,11 @@ def train(dataset, model_dir, writer):
                 data = inputs[0].to(device, dtype=torch.float).permute(0, 2, 1)
                 coords = inputs[1].to(device, dtype=torch.float).permute(0, 2, 1)
                 label = inputs[2].to(device, dtype=torch.long)
+                edge_index = inputs[3].to(device, dtype=torch.long).permute(1,0,2,3)
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
-                    out = model(data, coords)
+                    out = model(data, coords, edge_index)
                     loss = criterion(out, label)
                     if phase == 'train':
                         optimizer.zero_grad()

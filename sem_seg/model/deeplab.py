@@ -30,8 +30,8 @@ class DeepLab(nn.Module):
 
         self.decoder = decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma)
 
-    def forward(self, input, coords):
-        x, low_level_feat, coords = self.backbone(input, coords)
+    def forward(self, input, coords, edge_index):
+        x, low_level_feat, coords = self.backbone(input, coords,edge_index)
 
         x = self.aspp(x, coords)
 
