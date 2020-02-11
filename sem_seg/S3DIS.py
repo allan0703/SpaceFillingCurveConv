@@ -198,6 +198,9 @@ class S3DIS:
         if args.bias is not None:
             config.bias = args.bias
 
+        if args.sigma is not None:
+            config.sigma = args.sigma
+
         config.gpu_index = args.gpu
         config.multi_gpu = args.multi_gpu
         config.root_dir = args.root_dir

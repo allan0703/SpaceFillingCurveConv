@@ -5,16 +5,16 @@ import os
 class S3DISConfig():
     # Configuration of dataset and model:
     dataset = 'S3DIS'
-    model = 'deeplab'  # np.random.choice(['unet', 'deeplab'])
+    model = 'unet'  # np.random.choice(['unet', 'deeplab'])
     backbone = 'resnet18'  # np.random.choice(['xception', 'resnet18', 'resnet101'])
     num_classes = 13
 
     # Hyperparameters for training:
     test_area = 5  # np.random.choice([1, 2, 3, 4, 5, 6])
-    kernel_size = np.random.choice([3, 15, 21])
-    num_feats = np.random.choice([4, 9])
-    lr = np.random.choice([1e-3, 1e-4, 1e-5])
-    batch_size = int(np.random.choice([8, 16, 32]))
+    kernel_size = np.random.choice([3, 15, 27])
+    num_feats = 4  # np.random.choice([4, 9])
+    lr = np.random.choice([1e-3, 1e-4])
+    batch_size = int(np.random.choice([8, 16]))
     sigma = np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
     augment = True  # np.random.choice([True, False])
     bias = False  # np.random.choice([True, False])
