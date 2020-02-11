@@ -98,6 +98,7 @@ class S3DISDataset(Dataset):
         coordinates = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
 
         # compute hilbert order
+        # here. We build a SFC-Curve by using the XYZ
         points_norm = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
         points_norm /= points_norm.max(axis=0) + 1e-23
 
@@ -121,6 +122,12 @@ class S3DISDataset(Dataset):
             raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
                              .format(self.num_features))
 
+        # TODO: we build another SFC curve by using Z-color.
+        # v1: KNN neighbors
+        # v2: Z-color SFC neighbors
+        # center point: 00000000 111111 222222
+        # type
+        # NX1 --> reshape. Nxk (k=9 by default). Nxk: center point.  Cat: edge_index, 2xNxk (no self loop)
         return pointcloud[idx, :], coordinates[idx, :], label[idx]
 
 

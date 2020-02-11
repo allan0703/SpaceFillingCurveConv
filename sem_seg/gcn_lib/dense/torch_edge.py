@@ -21,7 +21,7 @@ def _knn_matrix(x, k=16, self_loop=True):
         x: (batch_size, num_dims, num_points, 1)
         k: int
     Returns:
-        nearest neighbors: (batch_size, num_points ,k) (batch_size, num_points, k)
+        nearest neighbors: (batch_size, 2, num_points ,k) (batch_size, num_points, k)
     """
     x = x.transpose(2, 1).squeeze(-1)
     batch_size, n_points, n_dims = x.shape

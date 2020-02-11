@@ -214,6 +214,7 @@ class ResNet(nn.Module):
         # print('Size at input: {}'.format(x.size()))
         # x = self.conv1(x)
         edge_index = self.knn_graph(coords)
+        # todo: replace knn_graph by Z-Color SFC neighbors
         x = self.conv1(x, coords, self.init_sigma, edge_index)
         x = self.bn1(x)
         x = self.relu(x)
