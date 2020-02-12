@@ -94,7 +94,7 @@ def get_edge_index(idx, k=9):
 
 
 class S3DISDataset(Dataset):
-    def __init__(self, data_label, num_features=9, augment=False, sfc_neighbors=9, use_rotation=False):
+    def __init__(self, data_label, num_features=9, augment=False, sfc_neighbors=9, use_rotation=True):
         self.augment = augment
         self.num_features = num_features
         self.data, self.label = data_label
