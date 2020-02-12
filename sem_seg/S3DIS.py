@@ -68,39 +68,43 @@ def get_hilbert_rotations(points, theta=np.pi):
     return np.stack((data_shift, rot_points_x, rot_points_y, rot_points_z), axis=0)
 
 
-def get_edge_index_index(num_points, num_neighbors):
-    edge_index_index = np.zeros((num_points, num_neighbors))
-    for i in range(num_points):
-        if num_neighbors / 2 <= i < (num_points - 5):
-            edge_index_index[i] = np.concatenate((np.arange(i - 4, i), np.arange(i + 1, i + 6)))
-        elif i < num_neighbors / 2:
-            l = np.arange(num_neighbors + 1)
+def get_edge_index(idx, k=9):
+    # num_points : N
+    n = len(idx)  # idx  SFC RGB+Z n-> num_points k->num_neighbors
+    edge_index_index = np.zeros((n, k))
+    for i in range(0, n):
+        if k // 2 <= i < (n - (k - k//2)):  # here 5 is 4 front neighbors and 5 behind neighbors
+            edge_index_index[i] = np.concatenate((np.arange(i - k//2, i), np.arange(i + 1, i + (k - k//2) + 1)))
+        elif i < k // 2:
+            l = np.arange(k + 1)
             l = filter(lambda x: x != i, l)
             l = [j for j in l]
             edge_index_index[i] = l
         else:
-            l = np.arange(num_points - 10, num_points)
+            l = np.arange(n - k - 1, n)
             l = filter(lambda x: x != i, l)
             l = [j for j in l]
             edge_index_index[i] = l
-    center_point = np.arange(num_points).transpose()
-    center_point = np.repeat(center_point[:, np.newaxis], num_neighbors, axis=1)
-    edge_index = np.stack((center_point, edge_index_index),axis=0)
+    center_point = np.arange(n).transpose()
+    center_point = np.repeat(center_point[:, np.newaxis], k, axis=1)
+    edge_index = np.stack((idx[center_point.astype(np.int16)], idx[edge_index_index.astype(np.int16)]), axis=0)
+
     return edge_index
 
 
 class S3DISDataset(Dataset):
-    def __init__(self, data_label, num_features=9, augment=False, sfc_neighbors = 9):
+    def __init__(self, data_label, num_features=9, augment=False, sfc_neighbors=9):
         self.augment = augment
         self.num_features = num_features
         self.data, self.label = data_label
         self.p = 7
         self.neighbors = sfc_neighbors
-        self.edge_index = get_edge_index_index(self.data.shape[1], sfc_neighbors)
+        # self.edge_index = get_edge_index_index(self.data.shape[1], sfc_neighbors)
 
         # compute hilbert order for voxelized space
         logging.info('Computing hilbert distances...')
-        self.hilbert_curve = HilbertCurve(self.p, 4)
+        self.hilbert_curve = HilbertCurve(self.p, 3)
+        self.hilbert_curve_rgbz = HilbertCurve(self.p, 4)
 
     def __len__(self):
         return self.data.shape[0]
@@ -117,26 +121,29 @@ class S3DISDataset(Dataset):
 
             pointcloud[:, :3] = points
 
-
         # get coordinates
         coordinates = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
         # z_rgb = np.concatenate((pointcloud[:, 2], pointcloud[:, 3:6]), axis=1)
 
         # compute hilbert order
-        # here. We build a SFC-Curve by using the XYZ
+        # here. We build a SFC-Curve by using the XYZ. norm the xyz
         points_norm = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
         points_norm /= points_norm.max(axis=0) + 1e-23
-        # z_norm = (z_rgb[:, 0] - z_rgb[:, 0].min(axis=0)) / z_rgb[:, 0].max(axis=0)
-        # rgb_norm = z_rgb[:, 1:4] / 255
         z_rgb_norm = np.concatenate((points_norm[:, 2, np.newaxis], pointcloud[:, 3:6]), axis=1)
-
         # order points in hilbert order
-        #points_voxel = np.floor(points_norm * (2 ** self.p - 1))
-        points_voxel = np.floor(z_rgb_norm * (2 ** self.p - 1))
+        points_voxel = np.floor(points_norm * (2 ** self.p - 1))
         hilbert_dist = np.zeros(points_voxel.shape[0])
         for i in range(points_voxel.shape[0]):
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :].astype(int))
-        idx = np.argsort(hilbert_dist)  # index by using z-rgb
+        idx = np.argsort(hilbert_dist)  # index by using xyz
+        pointcloud, coordinates, label = pointcloud[idx, :], coordinates[idx, :], label[idx]
+
+        points_voxel = np.floor(z_rgb_norm * (2 ** self.p - 1))
+        hilbert_dist = np.zeros(points_voxel.shape[0])
+        for i in range(points_voxel.shape[0]):
+            hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel[i, :].astype(int))
+        idx = np.argsort(hilbert_dist)
+        rgbz_edge_index = get_edge_index(idx, self.neighbors)
 
         # return appropriate number of features
         if self.num_features == 4:
@@ -150,16 +157,7 @@ class S3DISDataset(Dataset):
         else:
             raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
                              .format(self.num_features))
-
-        # TODO: we build another SFC curve by using Z-color.
-        # v1: KNN neighbors
-        # v2: Z-color SFC neighbors
-        # center point: 00000000 111111 222222
-        # type
-        # NX1 --> reshape. Nxk (k=9 by default ). Nxk: center point.  Cat: edge_index, 2xNxk (no self loop)
-        # edge_index = np.concatenate((self.edge_index[0].reshape(1, -1), self.edge_index[1].reshape(1,-1)),axis= 0).astype(np.long)
-
-        return pointcloud[idx, :], coordinates[idx, :], label[idx], self.edge_index
+        return pointcloud, coordinates, label, rgbz_edge_index
 
 
 class S3DIS:
