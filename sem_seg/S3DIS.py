@@ -94,18 +94,19 @@ def get_edge_index(idx, k=9):
 
 
 class S3DISDataset(Dataset):
-    def __init__(self, data_label, num_features=9, augment=False, sfc_neighbors=9):
+    def __init__(self, data_label, num_features=9, augment=False, sfc_neighbors=9, use_rotation=False):
         self.augment = augment
         self.num_features = num_features
         self.data, self.label = data_label
         self.p = 7
         self.neighbors = sfc_neighbors
         # self.edge_index = get_edge_index_index(self.data.shape[1], sfc_neighbors)
+        self.use_rotation = use_rotation
 
         # compute hilbert order for voxelized space
         logging.info('Computing hilbert distances...')
         self.hilbert_curve = HilbertCurve(self.p, 3)
-        # self.hilbert_curve_rgbz = HilbertCurve(self.p, 4)
+        self.hilbert_curve_rgbz = HilbertCurve(self.p, 4)
 
     def __len__(self):
         return self.data.shape[0]
@@ -133,18 +134,30 @@ class S3DISDataset(Dataset):
         # z_rgb_norm = np.concatenate((points_norm[:, 2, np.newaxis], pointcloud[:, 3:6]), axis=1)
         # order points in hilbert order
         points_voxel = np.floor(points_norm * (2 ** self.p - 1))
+
+
         hilbert_dist = np.zeros(points_voxel.shape[0])
         for i in range(points_voxel.shape[0]):
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :].astype(int))
         idx = np.argsort(hilbert_dist)  # index by using xyz
-        pointcloud, coordinates, label = pointcloud[idx, :], coordinates[idx, :], label[idx]
 
-        rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
-        points_voxel_rotation = np.matmul(points_voxel, rotation_z).astype(int)
-        points_voxel_rotation[:, 0:2] += (2 ** self.p - 1)
-        for i in range(points_voxel.shape[0]):
-            hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[i, :].astype(int))
-        idx2 = np.argsort(hilbert_dist)
+        pointcloud, coordinates, label = pointcloud[idx, :], coordinates[idx, :], label[idx]
+        points_norm, points_voxel = points_norm[idx, :], points_voxel[idx, :]
+
+        if self.use_rotation:
+            rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+            points_voxel_rotation = np.matmul(points_voxel, rotation_z).astype(int)
+            points_voxel_rotation[:, 0:2] += (2 ** self.p - 1)
+            for i in range(points_voxel.shape[0]):
+                hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[i, :].astype(int))
+            idx2 = np.argsort(hilbert_dist)
+        else:
+            z_rgb_norm = np.concatenate((points_norm[:, 2, np.newaxis], pointcloud[:, 3:6]), axis=1)
+            points_voxel1 = np.floor(z_rgb_norm * (2 ** self.p - 1))
+            for i in range(points_voxel.shape[0]):
+                hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel1[i, :].astype(int))
+            idx2 = np.argsort(hilbert_dist)
+
         rotation_z_edge_index = get_edge_index(idx2, self.neighbors)
 
         # return appropriate number of features
