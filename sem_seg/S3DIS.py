@@ -89,6 +89,7 @@ def get_edge_index(idx, k=9):
     center_point = np.repeat(center_point[:, np.newaxis], k, axis=1)
     edge_index = np.stack((idx[center_point.astype(np.int16)], idx[edge_index_index.astype(np.int16)]), axis=0)
 
+    edge_index = edge_index[:, edge_index[0, :, 1].argsort(), :]
     return edge_index
 
 
