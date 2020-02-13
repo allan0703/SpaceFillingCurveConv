@@ -235,9 +235,9 @@ class S3DIS:
             Y-m-d_H:M_prefixStr_lr_batchSize_modelName_augmentation_numEpochs__UUID
         """
         timestamp = time.strftime('%Y-%m-%d-%H-%M-%S')
-        experiment_string = '{}_{}_A{}_Cin{}_lr{}_B{}_K{}_Sigma{}_{}_{}_{}_{}_Epo{}_{}' \
+        experiment_string = '{}_{}_A{}_Cin{}_lr{}_B{}_K{}_Sigma{}_p{}_{}_{}_{}_{}_Epo{}_{}' \
             .format(timestamp, self.config.dataset, self.config.test_area, self.config.num_feats, self.config.lr,
-                    self.config.batch_size, self.config.kernel_size, self.config.sigma,  self.config.model,
+                    self.config.batch_size, self.config.kernel_size, self.config.sigma,  self.config.p, self.config.model,
                     self.config.backbone, 'augment' if self.config.augment else 'no-augment',
                     'bias' if self.config.bias else 'no-bias', self.config.max_epochs, uuid.uuid4())
 

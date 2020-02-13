@@ -42,6 +42,7 @@ class S3DISConfig:
 
         :param path: full path to save parameters
         """
+        # todo: be careful of the saving here. The config can be overwritten by args.
         with open(os.path.join(path, 'config.txt'), 'w') as f:
             f.write('# -----------------------------------#\n')
             f.write('#      Configuration Parameters      #\n')
