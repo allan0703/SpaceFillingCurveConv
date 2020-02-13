@@ -7,7 +7,7 @@ import logging
 import time
 import uuid
 import pathlib
-from utils import vis_points
+# from ..utils import vis_points
 from torch.utils.data import Dataset, DataLoader
 from hilbertcurve.hilbertcurve import HilbertCurve
 
