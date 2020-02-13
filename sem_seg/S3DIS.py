@@ -94,7 +94,7 @@ def get_edge_index(idx, k=9):
 
 
 class S3DISDataset(Dataset):
-    def __init__(self, data_label, num_features=9, augment=False, sfc_neighbors=9, use_rotation=True):
+    def __init__(self, data_label, num_features=9, augment=False, sfc_neighbors=9, use_rotation=False):
         self.augment = augment
         self.num_features = num_features
         self.data, self.label = data_label
@@ -106,7 +106,7 @@ class S3DISDataset(Dataset):
         # compute hilbert order for voxelized space
         logging.info('Computing hilbert distances...')
         self.hilbert_curve = HilbertCurve(self.p, 3)
-        self.hilbert_curve_rgbz = HilbertCurve(self.p, 4)
+        self.hilbert_curve_rgbz = HilbertCurve(self.p, 6)
 
     def __len__(self):
         return self.data.shape[0]
@@ -152,13 +152,13 @@ class S3DISDataset(Dataset):
                 hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[i, :].astype(int))
             idx2 = np.argsort(hilbert_dist)
         else:
-            z_rgb_norm = np.concatenate((points_norm[:, 2, np.newaxis], pointcloud[:, 3:6]), axis=1)
-            points_voxel1 = np.floor(z_rgb_norm * (2 ** self.p - 1))
-            for i in range(points_voxel.shape[0]):
+            xyz_rgb_norm = np.concatenate((points_norm, pointcloud[:, 3:6]), axis=1)
+            points_voxel1 = np.floor(xyz_rgb_norm * (2 ** self.p - 1))
+            for i in range(points_voxel1.shape[0]):
                 hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel1[i, :].astype(int))
             idx2 = np.argsort(hilbert_dist)
 
-        rotation_z_edge_index = get_edge_index(idx2, self.neighbors)
+        neighbors_edge_index = get_edge_index(idx2, self.neighbors)
 
         # return appropriate number of features
         if self.num_features == 4:
@@ -172,7 +172,7 @@ class S3DISDataset(Dataset):
         else:
             raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
                              .format(self.num_features))
-        return pointcloud, coordinates, label, rotation_z_edge_index
+        return pointcloud, coordinates, label, neighbors_edge_index
 
 
 class S3DIS:
