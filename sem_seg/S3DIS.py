@@ -7,7 +7,7 @@ import logging
 import time
 import uuid
 import pathlib
-
+from utils import vis_points
 from torch.utils.data import Dataset, DataLoader
 from hilbertcurve.hilbertcurve import HilbertCurve
 
@@ -36,8 +36,8 @@ def rotate_points(points):
 
 def scale_points(points):
     scale_factor = 0.8 + np.random.rand(3) * 0.4  # random scale between 0.8 and 1.2
-    scale_factor[0] *= np.random.rand() * 2 - 1  # random symmetry around x only
-
+    # scale_factor[0] *= np.random.rand() * 2 - 1  # random symmetry around x only
+    scale_factor[0] *= np.random.choice([-1, 1])    # I don't think we need shrink x. data distribution is not the same as testing
     return points * scale_factor
 
 
@@ -69,12 +69,12 @@ def get_hilbert_rotations(points, theta=np.pi):
 
 
 class S3DISDataset(Dataset):
-    def __init__(self, data_label, num_features=9, augment=False):
+    def __init__(self, data_label, num_features=9, augment=False, p=7):
         self.augment = augment
         self.num_features = num_features
         self.data, self.label = data_label
-        self.p = 7
-
+        self.p = p
+        # todo: find the best p.
         # compute hilbert order for voxelized space
         logging.info('Computing hilbert distances...')
         self.hilbert_curve = HilbertCurve(self.p, 3)
@@ -87,13 +87,17 @@ class S3DISDataset(Dataset):
         label = self.label[item, ...]
 
         if self.augment:
+            # todo: the data augmentation is only on the first 3 dims of the data.
+            # todo: after scaling the data ranging is no longer 0, 1. However, in testing, what is the data range?
+            # todo: pointcloud is [-0.5, 3.164]
             points = pointcloud[:, :3]
             points = rotate_points(points)
             points = scale_points(points)
             points = add_noise_points(points)
-
             pointcloud[:, :3] = points
 
+        # for testing :
+        # vis_points(pointcloud[:, 0:3], pointcloud[:, 3:6])
         # get coordinates
         coordinates = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
 
@@ -106,10 +110,13 @@ class S3DISDataset(Dataset):
         hilbert_dist = np.zeros(points_voxel.shape[0])
         for i in range(points_voxel.shape[0]):
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :].astype(int))
-        idx = np.argsort(hilbert_dist)
+        idx = np.argsort(hilbert_dist).copy()
+        # todo: why whould idx change?
+        pointcloud, coordinates, label = pointcloud[idx, :], coordinates[idx, :], label[idx]
 
         # return appropriate number of features
         if self.num_features == 4:
+            # todo: why /255. gives better results?
             pointcloud = np.hstack((pointcloud[:, 3:6]/255., pointcloud[:, 2, np.newaxis]))
         elif self.num_features == 5:
             pointcloud = np.hstack((np.ones((pointcloud.shape[0], 1)), pointcloud[:, 3:6],
@@ -121,7 +128,8 @@ class S3DISDataset(Dataset):
             raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
                              .format(self.num_features))
 
-        return pointcloud[idx, :], coordinates[idx, :], label[idx]
+        # return pointcloud[idx, :], coordinates[idx, :], label[idx]
+        return pointcloud, coordinates, label
 
 
 class S3DIS:
@@ -278,22 +286,6 @@ class S3DIS:
 
     def get_dataloaders(self):
         train_data, train_label, test_data, test_label = self._load_data()
-        # p = 7
-        #
-        # distances_file = os.path.join(self.config.root_dir, 'hilbert_distances_{:02d}.npy'.format(p))
-        #
-        # if os.path.isfile(distances_file):
-        #     logging.info('Loading distances file...')
-        #     hilbert_distances = np.load(distances_file)
-        # else:
-        #     hilbert_curve = HilbertCurve(p, 3)
-        #     grid = np.mgrid[0:2 ** p, 0:2 ** p, 0:2 ** p].reshape(3, -1).T
-        #     hilbert_distances = np.zeros(grid.shape[0])
-        #     for i in trange(grid.shape[0], desc='Computing hilbert distances...'):
-        #         hilbert_distances[i] = hilbert_curve.distance_from_coordinates(grid[i, :].astype(int))
-        #
-        #     logging.info('Saving distances file...')
-        #     np.save(distances_file, hilbert_distances)
 
         datasets = {
             'train': S3DISDataset(data_label=(train_data, train_label),

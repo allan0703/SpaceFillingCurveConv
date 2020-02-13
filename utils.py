@@ -7,7 +7,7 @@ import logging
 import numpy as np
 import torch
 import random
-
+import pyvista as pv
 from torch.utils.tensorboard import SummaryWriter
 
 __all__ = ['generate_experiment_dir', 'dump_config_details_to_tensorboard',
@@ -340,4 +340,18 @@ def set_seed(seed=0):
 
 def count_model_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def vis_points(points, colors=None):
+    plotter = pv.BackgroundPlotter()
+    plotter.enable_eye_dome_lighting()
+    # dense points
+    point_cloud = pv.PolyData(points)
+    if colors is None:
+        colors = np.ones(points.shape[0], 3)
+    point_cloud['color'] = colors
+    plotter.add_mesh(point_cloud, scalars='color', rgb=True, point_size=10., render_points_as_spheres=True)
+    plotter.show_grid()
+    plotter.show()
+
 
