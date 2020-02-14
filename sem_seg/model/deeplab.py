@@ -31,11 +31,12 @@ class DeepLab(nn.Module):
         self.decoder = decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma)
 
     def forward(self, input, coords, edge_index):
-        x, low_level_feat, coords = self.backbone(input, coords,edge_index)
+        original_coords = coords
+        x, low_level_feat, coords = self.backbone(input, coords, edge_index)
 
         x = self.aspp(x, coords)
 
-        x = self.decoder(x, low_level_feat, coords)
+        x = self.decoder(x, low_level_feat, original_coords)
 
         return x
 
@@ -45,11 +46,15 @@ def deeplab(backbone='resnet101', input_size=3, output_stride=16, num_classes=21
 
 
 if __name__ == '__main__':
+    from gcn_lib.dense import DilatedKnn2d
     x = torch.rand((4, 4, 4096), dtype=torch.float)
     coords = torch.rand((4, 3, 4096), dtype=torch.float)
+    knn = DilatedKnn2d(9, dilation=1, self_loop=False)
+    edge_index = knn(x)
+
     print('Input size {}'.format(x.size()))
-    net = deeplab(input_size=4, num_classes=13, backbone='resnet18', kernel_size=9)
-    out = net(x, coords)
+    net = deeplab(input_size=4, num_classes=13, backbone='resnet101', kernel_size=9)
+    out = net(x, coords, edge_index)
 
     print('Output size {}'.format(out.size()))
 

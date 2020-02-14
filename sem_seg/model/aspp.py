@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import logging
 import time
 
-from .weighted_conv import WeightedConv1D
+from model.weighted_conv import WeightedConv1D
 
 __all__ = ['aspp']
 
@@ -43,8 +43,6 @@ class ASPPPooling(nn.Module):
         if x.shape[0] > 1:
             x = self.bn(x)
         x = self.relu(x)
-        # print('Interpolating with size {}'.format(size))
-        # print('Size of x before interpolate {}'.format(x.size()))
         x = F.interpolate(x, size=size, mode='linear', align_corners=False)
         # print('Size of x after interpolate {}'.format(x.size()))
         return x
