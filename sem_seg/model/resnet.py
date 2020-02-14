@@ -224,13 +224,11 @@ class ResNet(nn.Module):
         x, coords, edge_index = self.layer1((x, coords, edge_index))
         low_level_feats = x
 
-        # edge_index = self.knn_graph(x)
         x, coords, edge_index = self.layer2((x, coords, edge_index))
 
         # edge_index = self.knn_graph(x)
         x, coords, edge_index = self.layer3((x, coords, edge_index))
 
-        # edge_index = self.knn_graph(x)
         x, coords, edge_index = self.layer4((x, coords, edge_index))
 
         return x, low_level_feats, coords

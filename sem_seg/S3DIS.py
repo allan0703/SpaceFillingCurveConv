@@ -36,8 +36,8 @@ def rotate_points(points):
 
 def scale_points(points):
     scale_factor = 0.8 + np.random.rand(3) * 0.4  # random scale between 0.8 and 1.2
-    # scale_factor[0] *= np.random.rand() * 2 - 1  # random symmetry around x only
-    scale_factor[0] *= np.random.choice([-1, 1])    # I don't think we need shrink x. data distribution is not the same as testing
+    scale_factor[0] *= np.random.rand() * 2 - 1  # random symmetry around x only
+    # scale_factor[0] *= np.random.choice([-1, 1])    # todo: test the usefulness of sysmetry x.
     return points * scale_factor
 
 
@@ -87,9 +87,6 @@ class S3DISDataset(Dataset):
         label = self.label[item, ...]
 
         if self.augment:
-            # todo: the data augmentation is only on the first 3 dims of the data.
-            # todo: after scaling the data ranging is no longer 0, 1. However, in testing, what is the data range?
-            # todo: pointcloud is [-0.5, 3.164]
             points = pointcloud[:, :3]
             points = rotate_points(points)
             points = scale_points(points)

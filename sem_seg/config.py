@@ -18,7 +18,8 @@ class S3DISConfig:
     sigma = 0.02  # np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
     augment = True  # np.random.choice([True, False])
     bias = False  # np.random.choice([True, False])
-    p = np.random.choice([5, 6, 7])
+    p = 7
+    # p = np.random.choice([5, 6, 7])  # Try different p later.
 
     # Training setup:
     max_epochs = 300
