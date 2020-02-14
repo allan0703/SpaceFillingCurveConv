@@ -94,15 +94,15 @@ def train(dataset, model_dir, writer):
         'num_epochs_since_best_acc': 0
     }
 
-    # compute rotations and hilbert distances
-    rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-    rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
-    rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
-    rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
-    rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
-    rotations = rotations[:args.num_rotations, ...]
-    if len(rotations.shape) < 3:
-        rotations = rotations.unsqueeze(0)
+    # # compute rotations and hilbert distances
+    # rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    # rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
+    # rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+    # rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
+    # rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+    # rotations = rotations[:args.num_rotations, ...]
+    # if len(rotations.shape) < 3:
+    #     rotations = rotations.unsqueeze(0)
 
     # rotations = torch.eye(3).unsqueeze(0).to(device, dtype=torch.float32)
 
@@ -149,7 +149,7 @@ def train(dataset, model_dir, writer):
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
-                    out = model(data, coords, rotations, distances)
+                    out = model(data, coords)
                     loss = criterion(out, label)
                     if phase == 'train':
                         optimizer.zero_grad()

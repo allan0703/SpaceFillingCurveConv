@@ -5,7 +5,7 @@ import logging
 import time
 import numpy as np
 
-from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D
+from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D, WeightedConv1by1
 
 __all__ = ['aspp']
 
@@ -16,13 +16,13 @@ class ASPPConv(nn.Module):
         self.sigma = sigma
         # self.conv = WeightedConv1D(in_channels, out_channels, kernel_size=kernel_size, dilation=dilation,
         #                            padding=kernel_size // 2, stride=1)
-        self.conv = MultiOrderWeightedConv1D(in_channels, out_channels, kernel_size=kernel_size, dilation=dilation,
-                                             padding=kernel_size // 2, stride=1)
+        self.conv = WeightedConv1by1(in_channels, out_channels, kernel_size=kernel_size, dilation=dilation,
+                                     padding=kernel_size // 2, stride=1)
         self.bn = nn.BatchNorm1d(out_channels)
         self.relu = nn.ReLU()
 
-    def forward(self, x, coords, rotations, distances):
-        x = self.conv(x, coords, rotations, distances, self.sigma)
+    def forward(self, x, coords):
+        x = self.conv(x, coords, self.sigma)
         x = self.bn(x)
         x = self.relu(x)
 
@@ -93,15 +93,17 @@ class ASPP(nn.Module):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, WeightedConv1D):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            # elif isinstance(m, WeightedConv1by1):
+            #     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, (nn.BatchNorm1d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x, coords, rotations, distances):
+    def forward(self, x, coords):
         res = []
         res.append(self.conv1(x))
         for conv in self.convs:
-            res.append(conv(x, coords, rotations, distances))
+            res.append(conv(x, coords))
             # print('Current size {}'.format(res[-1].size()))
         res.append(self.pool(x))
         res = torch.cat(res, dim=1)
@@ -121,25 +123,25 @@ if __name__ == '__main__':
     logger = logging.getLogger()
     logger.setLevel(numeric_level)
 
-    device = torch.device('cpu')
+    device = torch.device('cuda:1')
     res = 128
-    feats = torch.rand((4, 512, 128), dtype=torch.float).to(device)
-    coords = torch.rand((4, 3, 128), dtype=torch.float).to(device)
+    feats = torch.rand((8, 512, 128), dtype=torch.float).to(device)
+    coords = torch.rand((8, 3, 128), dtype=torch.float).to(device)
 
-    rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-    rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
-    rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
-    rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
-    rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+    # rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    # rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
+    # rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+    # rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
+    # rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+    #
+    # distances = torch.randint(res ** 3, (res ** 3,)).to(device, dtype=torch.long)
 
-    distances = torch.randint(res ** 3, (res ** 3,)).to(device, dtype=torch.long)
-
-    k = 3
+    k = 21
 
     net = aspp(in_channels=512, out_channels=256, output_stride=16, kernel_size=k).to(device)
 
     start_time = time.time()
-    out = net(feats, coords, rotations, distances)
+    out = net(feats, coords)
     logging.info('It took {:f}s'.format(time.time() - start_time))
     # out = out.mean(dim=1)
     logging.info('Output size {}'.format(out.size()))

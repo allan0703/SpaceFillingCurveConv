@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import time
 
-from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D, weighted_interpolation
+from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D, weighted_interpolation, WeightedConv1by1
 
 __all__ = ['decoder']
 
@@ -16,14 +16,14 @@ class DecoderConv(nn.Module):
         self.sigma = sigma
         # self.conv = WeightedConv1D(in_channels, out_channels, kernel_size=kernel_size, dilation=1,
         #                            padding=kernel_size // 2, stride=1)
-        self.conv = MultiOrderWeightedConv1D(in_channels, out_channels, kernel_size=kernel_size, dilation=1,
-                                             padding=kernel_size // 2, stride=1)
+        self.conv = WeightedConv1by1(in_channels, out_channels, kernel_size=kernel_size, dilation=1,
+                                     padding=kernel_size // 2, stride=1)
         self.bn = nn.BatchNorm1d(out_channels)
         self.relu = nn.ReLU()
         self.drop = nn.Dropout(drop)
 
-    def forward(self, x, coords, rotations, distances):
-        x = self.relu(self.bn(self.conv(x, coords, rotations, distances, self.sigma)))
+    def forward(self, x, coords):
+        x = self.relu(self.bn(self.conv(x, coords, self.sigma)))
         x = self.drop(x)
 
         return x
@@ -61,7 +61,7 @@ class Decoder(nn.Module):
         self.conv_out = nn.Conv1d(256, num_classes, kernel_size=1, stride=1)
         self._init_weight()
 
-    def forward(self, x, low_level_feat, coords, rotations, distances):
+    def forward(self, x, low_level_feat, coords):
         low_level_feat = self.conv1(low_level_feat)
         low_level_feat = self.bn1(low_level_feat)
         low_level_feat = self.relu(low_level_feat)
@@ -71,8 +71,8 @@ class Decoder(nn.Module):
         x = weighted_interpolation(x, coords)
 
         x = torch.cat((x, low_level_feat), dim=1)
-        x = self.last_conv1(x, coords, rotations, distances)
-        x = self.last_conv2(x, coords, rotations, distances)
+        x = self.last_conv1(x, coords)
+        x = self.last_conv2(x, coords)
         x = self.conv_out(x)
 
         return x
@@ -83,6 +83,8 @@ class Decoder(nn.Module):
                 torch.nn.init.kaiming_normal_(m.weight)
             elif isinstance(m, WeightedConv1D):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            # elif isinstance(m, WeightedConv1by1):
+            #     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, nn.BatchNorm1d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
@@ -93,26 +95,26 @@ def decoder(num_classes, backbone, kernel_size, sigma):
 
 
 if __name__ == '__main__':
-    device = torch.device('cpu')
+    device = torch.device('cuda:1')
     res = 128
-    feats = torch.rand((4, 256, 128), dtype=torch.float).to(device)
-    low_level_feat = torch.rand((4, 64, 1024), dtype=torch.float).to(device)
-    coords = torch.rand((4, 3, 1024), dtype=torch.float).to(device)
+    feats = torch.rand((8, 256, 128), dtype=torch.float).to(device)
+    low_level_feat = torch.rand((8, 64, 1024), dtype=torch.float).to(device)
+    coords = torch.rand((8, 3, 1024), dtype=torch.float).to(device)
 
-    rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-    rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
-    rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
-    rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
-    rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+    # rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    # rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
+    # rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+    # rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
+    # rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+    #
+    # distances = torch.randint(res ** 3, (res ** 3,)).to(device, dtype=torch.long)
 
-    distances = torch.randint(res ** 3, (res ** 3,)).to(device, dtype=torch.long)
+    k = 21
 
-    k = 3
-
-    net = decoder(num_classes=13, backbone='resnet18', kernel_size=k, sigma=1.0).to(device)
+    net = decoder(num_classes=13, backbone='resnet18', kernel_size=k, sigma=0.2).to(device)
 
     start_time = time.time()
-    out = net(feats, low_level_feat, coords, rotations, distances)
+    out = net(feats, low_level_feat, coords)
     print('It took {:f}s'.format(time.time() - start_time))
     # out = out.mean(dim=1)
     print('Output size {}'.format(out.size()))

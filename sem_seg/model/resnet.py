@@ -4,7 +4,7 @@ import logging
 import time
 import numpy as np
 
-from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D
+from .weighted_conv import WeightedConv1D, MultiOrderWeightedConv1D, WeightedConv1by1
 
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']
@@ -21,10 +21,10 @@ def convKxK(in_planes, out_planes, stride=1, k=9, dilation=1):
     """Kx1 weighted convolution"""
     padding = k // 2
 
-    # return WeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation,
-    #                       padding=padding, stride=stride)
-    return MultiOrderWeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation,
-                                    padding=padding, stride=stride)
+    return WeightedConv1by1(in_planes, out_planes, kernel_size=k, dilation=dilation,
+                            padding=padding, stride=stride)
+    # return MultiOrderWeightedConv1D(in_planes, out_planes, kernel_size=k, dilation=dilation,
+    #                                 padding=padding, stride=stride)
 
 
 def conv1x1(in_planes, out_planes, stride=1):
@@ -55,15 +55,15 @@ class BasicBlock(nn.Module):
         self.dilation = dilation
 
     def forward(self, inputs):
-        x, coords, rotations, distances = inputs
+        x, coords = inputs
         identity = x
 
-        out = self.conv1(x, coords, rotations, distances, self.sigma)
+        out = self.conv1(x, coords, self.sigma)
 
         out = self.bn1(out)
         out = self.relu(out)
 
-        out = self.conv2(out, coords[:, :, ::self.stride], rotations, distances, self.sigma * self.stride)
+        out = self.conv2(out, coords[:, :, ::self.stride], self.sigma * self.stride)
         out = self.bn2(out)
 
         if self.downsample is not None:
@@ -72,7 +72,7 @@ class BasicBlock(nn.Module):
         out += identity
         out = self.relu(out)
 
-        return out, coords[:, :, ::self.stride], rotations, distances
+        return out, coords[:, :, ::self.stride]
 
 
 class Bottleneck(nn.Module):
@@ -99,7 +99,7 @@ class Bottleneck(nn.Module):
         self.dilation = dilation
 
     def forward(self, inputs):
-        x, multi_coords, indices, reindices= inputs #b*c*n
+        x, coords = inputs
 
         identity = x
 
@@ -107,11 +107,8 @@ class Bottleneck(nn.Module):
         out = self.bn1(out)
         out = self.relu(out)
 
-        out = self.conv2(out, coords, indices, reindices, self.sigma * self.dilation)
-        #coords = coords[:, :, ::self.stride, :] #b*c*(n/2)*t
-
-        # selected_indices = torch.arange(0, x.shape[2], self.stride).expand(coords.shape[0], coords.shape[3],coords.shape[2] ).transpose(2,1) #b*(n/2)*t selected original points(indices)
-        # indices = torch.gather(indices, 2, selected_indices)
+        out = self.conv2(out, coords, self.sigma * self.dilation)
+        coords = coords[:, :, ::self.stride]
 
         out = self.bn2(out)
         out = self.relu(out)
@@ -125,7 +122,7 @@ class Bottleneck(nn.Module):
         out += identity
         out = self.relu(out)
 
-        return out, multi_coords, indices, reindices
+        return out, coords
 
 
 class ResNet(nn.Module):
@@ -172,6 +169,8 @@ class ResNet(nn.Module):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, WeightedConv1D):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            # elif isinstance(m, WeightedConv1by1):
+            #     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, (nn.BatchNorm1d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -209,25 +208,25 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x, coords, rotations, distances):
-        # x, coords, rotations, distances = inputs
+    def forward(self, x, coords):
+        # x, coords = inputs
         # print('Size at input: {}'.format(x.size()))
         # x = self.conv1(x)
-        x = self.conv1(x, coords, rotations, distances, self.initial_sigma)
+        x = self.conv1(x, coords, self.initial_sigma)
         x = self.bn1(x)
         x = self.relu(x)
         # print('Size after conv1: {}'.format(x.size()))
         x = self.maxpool(x)
         # print('Size after maxpool: {}'.format(x.size()))
         coords = coords[:, :, ::4]
-        x, coords, _, _ = self.layer1((x, coords, rotations, distances))
+        x, coords = self.layer1((x, coords))
         # print('Size after layer1: {}'.format(x.size()))
         low_level_feats = x
-        x, coords, _, _ = self.layer2((x, coords, rotations, distances))
+        x, coords = self.layer2((x, coords))
         # print('Size after layer2: {}'.format(x.size()))
-        x, coords, _, _ = self.layer3((x, coords, rotations, distances))
+        x, coords = self.layer3((x, coords))
         # print('Size after layer3: {}'.format(x.size()))
-        x, coords, _, _ = self.layer4((x, coords, rotations, distances))
+        x, coords = self.layer4((x, coords))
         # print('Size after layer4: {}'.format(x.size()))
 
         return x, low_level_feats, coords
@@ -270,35 +269,35 @@ if __name__ == '__main__':
     batch_size = 8
     groups = 4
     in_channels = 9
-    out_channels = 16
+    out_channels = 64
     num_points = 4096
     T = 4
-    kernel_size = 9
-    padding = 4
-    dilation = 2
-    stride = 2
-    sigma = 0.5
+    kernel_size = 21
+    padding = 10
+    dilation = 1
+    stride = 1
+    sigma = 0.2
     res = 128
-    device = torch.device('cuda:1')
+    device = torch.device('cuda:0')
 
     feats = torch.rand((batch_size, in_channels, num_points), dtype=torch.float).to(device, dtype=torch.float32)
     coords = torch.rand((batch_size, 3, num_points), dtype=torch.float).to(device, dtype=torch.float32)
 
-    rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-    rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
-    rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
-    rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
-    rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
-
-    distances = torch.randint(res ** 3, (res ** 3,)).to(device, dtype=torch.long)
-
-    print(feats.shape, coords.shape, rotations.shape, distances.shape)
-    print(feats.dtype, coords.dtype, rotations.dtype, distances.dtype)
-
-    net = resnet18(kernel_size=kernel_size, input_size=in_channels).to(device)
+    # rotation_x = np.transpose([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    # rotation_y = np.transpose([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])
+    # rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+    # rotations = np.stack((np.eye(3), rotation_x, rotation_y, rotation_z), axis=0)
+    # rotations = torch.from_numpy(rotations).to(device, dtype=torch.float32)
+    #
+    # distances = torch.randint(res ** 3, (res ** 3,)).to(device, dtype=torch.long)
+    #
+    # print(feats.shape, coords.shape, rotations.shape, distances.shape)
+    # print(feats.dtype, coords.dtype, rotations.dtype, distances.dtype)
+    print(feats.shape, coords.shape)
+    net = resnet18(kernel_size=kernel_size, input_size=in_channels, sigma=sigma).to(device)
 
     start_time = time.time()
-    out, low_level_feats, out_coords = net(feats, coords, rotations, distances)
+    out, low_level_feats, out_coords = net(feats, coords)
     # out.mean().backward()
     logging.info('It took {:f}s'.format(time.time() - start_time))
     # out = out.mean(dim=1)
