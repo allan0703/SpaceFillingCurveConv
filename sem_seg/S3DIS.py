@@ -99,6 +99,7 @@ class S3DISDataset(Dataset):
         self.num_features = num_features
         self.data, self.label = data_label
         self.p = 7
+        self.p2 = 3
         self.neighbors = sfc_neighbors
         # self.edge_index = get_edge_index_index(self.data.shape[1], sfc_neighbors)
         self.use_rotation = use_rotation
@@ -106,7 +107,7 @@ class S3DISDataset(Dataset):
         # compute hilbert order for voxelized space
         logging.info('Computing hilbert distances...')
         self.hilbert_curve = HilbertCurve(self.p, 3)
-        self.hilbert_curve_rgbz = HilbertCurve(self.p, 6)
+        self.hilbert_curve_rgbz = HilbertCurve(self.p2, 6)
 
     def __len__(self):
         return self.data.shape[0]
@@ -153,7 +154,7 @@ class S3DISDataset(Dataset):
             idx2 = np.argsort(hilbert_dist)
         else:
             xyz_rgb_norm = np.concatenate((points_norm, pointcloud[:, 3:6]), axis=1)
-            points_voxel1 = np.floor(xyz_rgb_norm * (2 ** self.p - 1))
+            points_voxel1 = np.floor(xyz_rgb_norm * (2 ** self.p2 - 1))
             for i in range(points_voxel1.shape[0]):
                 hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel1[i, :].astype(int))
             idx2 = np.argsort(hilbert_dist)
