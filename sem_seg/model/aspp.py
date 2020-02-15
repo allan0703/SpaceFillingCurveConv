@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import logging
 import time
 
-from .weighted_conv import WeightedConv1D
+from model.weighted_conv import WeightedConv1D
 
 __all__ = ['aspp']
 
@@ -54,9 +54,11 @@ class ASPP(nn.Module):
     def __init__(self, in_channels, out_channels, output_stride, kernel_size, sigma):
         super(ASPP, self).__init__()
         if output_stride == 16:
-            dilations = [6, 12, 18]
+           dilations = [1, 1, 1]
+        # dilations = [6, 12, 18]
         elif output_stride == 8:
-            dilations = [12, 24, 36]
+            dilations = [1, 1, 1]
+        # dilations = [12, 24, 36]
         else:
             raise NotImplementedError
 

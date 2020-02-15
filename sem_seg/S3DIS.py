@@ -99,7 +99,7 @@ class S3DISDataset(Dataset):
         self.num_features = num_features
         self.data, self.label = data_label
         self.p = 7
-        self.p2 = 3
+        self.p2 = 7
         self.neighbors = sfc_neighbors
         # self.edge_index = get_edge_index_index(self.data.shape[1], sfc_neighbors)
         self.use_rotation = use_rotation

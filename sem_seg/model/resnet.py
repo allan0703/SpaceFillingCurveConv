@@ -4,7 +4,7 @@ import logging
 import time
 from gcn_lib.dense import GraphConv2d, DilatedKnn2d
 from model.weighted_conv import WeightedConv1D
-
+import numpy as np
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']
 
@@ -156,13 +156,14 @@ class ResNet(nn.Module):
         # self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
         # self.sigma *= 4
         self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
-        self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
+        # for no dilation
+        self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=1,
                                        dilate=replace_stride_with_dilation[0], sigma=self.sigma)
         self.sigma *= 2
-        self.layer3 = self._make_layer(block, 256, layers[2], k=k, stride=2,
+        self.layer3 = self._make_layer(block, 256, layers[2], k=k, stride=1,
                                        dilate=replace_stride_with_dilation[1], sigma=self.sigma)
         self.sigma *= 2
-        self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=2,
+        self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=1,
                                        dilate=replace_stride_with_dilation[2], sigma=self.sigma)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.fc = nn.Linear(512 * block.expansion, num_classes)
@@ -273,14 +274,19 @@ if __name__ == '__main__':
 
     device = torch.device('cpu')
 
-    feats = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
-    coords = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
+    feats = torch.rand((1, 3, 4096), dtype=torch.float).to(device)
+    coords = torch.rand((1, 3, 4096), dtype=torch.float).to(device)
+    # center_point = np.arange(4096).transpose()
+    # center_point = np.repeat(center_point[:, np.newaxis], 9, axis=1)
+    # edge_index = torch.randint(0, 4096, (2, 4096, 9), dtype=torch.long).to(device)
+    # edge_index[ 0, :, :] = torch.from_numpy(center_point)
+
     k = 21
 
     net = resnet101(kernel_size=k, input_size=3, num_classes=40).to(device)
 
     start_time = time.time()
-    out, low_level_feats, out_coords = net(feats, coords)
+    out, low_level_feats, out_coords = net(feats, coords, edge_index)
     logging.info('It took {:f}s'.format(time.time() - start_time))
     # out = out.mean(dim=1)
     logging.info('Output size {}'.format(out.size()))
