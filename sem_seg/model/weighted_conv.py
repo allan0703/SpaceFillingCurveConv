@@ -146,11 +146,13 @@ class WeightedConv1by1(nn.Module):
         self.padding = (padding * dilation, 0)
         self.stride = (stride, 1)
 
-        self.conv1 = nn.Conv2d(in_channels=in_channels * 2, out_channels=in_channels, kernel_size=1)
+        self.conv1c = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1)
+        self.conv1n = nn.Conv2d(in_channels=in_channels, out_channels=in_channels, kernel_size=1)
         self.bn = nn.BatchNorm2d(in_channels)
+        self.relu = nn.ReLU(inplace=True)
+
         self.conv2 = WeightedConv1D(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
                                     dilation=dilation, padding=padding, stride=stride)
-        self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x, coords, sigma):
         """
@@ -179,9 +181,10 @@ class WeightedConv1by1(nn.Module):
         center_point = x[:, :, self.kernel_size[0] // 2, :].unsqueeze(2).repeat(1, 1, self.kernel_size[0] - 1, 1)
         x = torch.cat((x[:, :, :self.kernel_size[0] // 2, :],
                        x[:, :, self.kernel_size[0] // 2 + 1:, :]), dim=2) - center_point
-        x = torch.cat((center_point, x), dim=1)
+        # x = self.conv1n(x) + self.conv1c(center_point)
+        # x = torch.cat((center_point, x), dim=1)
 
-        x = self.relu(self.bn(self.conv1(x))).max(dim=2)[0]
+        x = self.bn(self.relu(self.conv1n(x) + self.conv1c(center_point))).max(dim=2)[0]
         x = self.conv2(x, coords, sigma=sigma)
 
         return x
