@@ -16,12 +16,12 @@ class DeepLab(nn.Module):
 
         if backbone == 'resnet18':
             self.backbone = resnet18(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
-            sigma *= 4
+            # sigma *= 4
             self.aspp = aspp(in_channels=512, out_channels=256, output_stride=output_stride,
                              kernel_size=kernel_size, sigma=sigma)
         elif backbone == 'resnet101':
             self.backbone = resnet101(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
-            sigma *= 4
+            # sigma *= 4
             self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride,
                              kernel_size=kernel_size, sigma=sigma)
         else:

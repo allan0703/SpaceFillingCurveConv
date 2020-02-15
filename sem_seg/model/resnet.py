@@ -159,10 +159,10 @@ class ResNet(nn.Module):
         # for no dilation
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=1,
                                        dilate=replace_stride_with_dilation[0], sigma=self.sigma)
-        self.sigma *= 2
+        # self.sigma *= 2
         self.layer3 = self._make_layer(block, 256, layers[2], k=k, stride=1,
                                        dilate=replace_stride_with_dilation[1], sigma=self.sigma)
-        self.sigma *= 2
+        # self.sigma *= 2
         self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=1,
                                        dilate=replace_stride_with_dilation[2], sigma=self.sigma)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
