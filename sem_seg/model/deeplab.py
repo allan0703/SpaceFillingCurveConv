@@ -16,12 +16,12 @@ class DeepLab(nn.Module):
 
         if backbone == 'resnet18':
             self.backbone = resnet18(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
-            sigma *= 4
+            sigma *= 8
             self.aspp = aspp(in_channels=512, out_channels=256, output_stride=output_stride,
                              kernel_size=kernel_size, sigma=sigma)
         elif backbone == 'resnet101':
             self.backbone = resnet101(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
-            sigma *= 4
+            sigma *= 8
             self.aspp = aspp(in_channels=2048, out_channels=256, output_stride=output_stride,
                              kernel_size=kernel_size, sigma=sigma)
         else:
@@ -31,12 +31,11 @@ class DeepLab(nn.Module):
         self.decoder = decoder(num_classes=num_classes, backbone=backbone, kernel_size=kernel_size, sigma=sigma)
 
     def forward(self, input, coords, edge_index):
-        original_coords = coords
-        x, low_level_feat, coords = self.backbone(input, coords, edge_index)
+        layer1_feat, layer2_feat, layer3_feat, layer4_feat, coords1, coords2, coords3, coords4 = self.backbone(input, coords, edge_index)
 
-        x = self.aspp(x, coords)
+        x = self.aspp(layer4_feat, coords4)
 
-        x = self.decoder(x, low_level_feat, original_coords)
+        x = self.decoder(x, layer1_feat, layer2_feat, layer3_feat, coords1, coords2, coords3)
 
         return x
 

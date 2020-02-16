@@ -5,13 +5,13 @@ import time
 from gcn_lib.dense import GraphConv2d, DilatedKnn2d
 from model.weighted_conv import WeightedConv1D
 
-
 __all__ = ['resnet18', 'resnet50', 'resnet101']
+
 
 class convKxK(nn.Module):
     def __init__(self, in_planes, out_planes, stride=1, k=9, dilation=1):
         super(convKxK, self).__init__()
-        padding = dilation*(k // 2)
+        padding = dilation * (k // 2)
         self.conv1 = GraphConv2d(in_planes, in_planes, conv='edge', act='relu', norm='batch', bias=False)
         self.conv2 = WeightedConv1D(in_planes, out_planes, k, dilation, padding, stride)
 
@@ -53,14 +53,13 @@ class BasicBlock(nn.Module):
         out = self.conv1(x, coords, self.sigma, edge_index)
         if self.stride > 1:
             coords = coords[:, :, ::self.stride]
-            edge_index = edge_index[:, :, ::self.stride, :]//self.stride
+            edge_index = edge_index[:, :, ::self.stride, :] // self.stride
 
         out = self.bn1(out)
         out = self.relu(out)
 
         out = self.conv2(out, coords, self.sigma * self.stride, edge_index)  # no stride
         out = self.bn2(out)
-
 
         if self.downsample is not None:
             identity = self.downsample(x)
@@ -72,7 +71,7 @@ class BasicBlock(nn.Module):
 
 
 class Bottleneck(nn.Module):
-    expansion = 4   # channels' growth in every block
+    expansion = 4  # channels' growth in every block
 
     def __init__(self, inplanes, planes, stride=1, k=9, downsample=None, groups=1,
                  base_width=64, dilation=1, sigma=1.0):
@@ -105,7 +104,7 @@ class Bottleneck(nn.Module):
         out = self.conv2(out, coords, self.sigma, edge_index)
         if self.stride > 1:
             coords = coords[:, :, ::self.stride]
-            edge_index = edge_index[:, :, ::self.stride, :]//self.stride
+            edge_index = edge_index[:, :, ::self.stride, :] // self.stride
 
         out = self.bn2(out)
         out = self.relu(out)
@@ -147,12 +146,10 @@ class ResNet(nn.Module):
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
 
-        # self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
-        # self.sigma *= 4
         self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[0], sigma=self.sigma)
-        self.sigma *= 2     # todo: sigma is changing after the block, not inside the block.
+        self.sigma *= 2
         self.layer3 = self._make_layer(block, 256, layers[2], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[1], sigma=self.sigma)
         self.sigma *= 2
@@ -198,9 +195,12 @@ class ResNet(nn.Module):
         layers.append(block(self.inplanes, planes, stride, k, downsample, self.groups,
                             self.base_width, previous_dilation, sigma=sigma))
         self.inplanes = planes * block.expansion
+
+        if stride > 1:
+            sigma = sigma * 2
         for _ in range(1, blocks):
             layers.append(block(self.inplanes, planes, k=k, groups=self.groups,
-                                base_width=self.base_width, dilation=self.dilation))
+                                base_width=self.base_width, dilation=self.dilation, sigma=sigma))
 
         return nn.Sequential(*layers)
 
@@ -209,19 +209,11 @@ class ResNet(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
 
-        x, coords, edge_index = self.layer1((x, coords, edge_index))
-
-        # edge_index = self.knn_graph(x)
-        x, coords, edge_index = self.layer2((x, coords, edge_index))
-        low_level_feats = x     # channels = 256 for resnet101. change from layer 1 to layer2
-
-        # edge_index = self.knn_graph(x)
-        x, coords, edge_index = self.layer3((x, coords, edge_index))
-
-        # edge_index = self.knn_graph(x)
-        x, coords, edge_index = self.layer4((x, coords, edge_index))
-
-        return x, low_level_feats, coords    # output stride = 4 * stride
+        layer1_feat, coords1, edge_index = self.layer1((x, coords, edge_index))
+        layer2_feat, coords2, edge_index = self.layer2((layer1_feat, coords1, edge_index))
+        layer3_feat, coords3, edge_index = self.layer3((layer2_feat, coords2, edge_index))
+        layer4_feat, coords4, edge_index = self.layer4((layer3_feat, coords3, edge_index))
+        return layer1_feat, layer2_feat, layer3_feat, layer4_feat, coords1, coords2, coords3, coords4
 
 
 def _resnet(block, layers, k, **kwargs):
@@ -267,14 +259,13 @@ if __name__ == '__main__':
     knn = DilatedKnn2d(9, dilation=1, self_loop=False)
     edge_index = knn(feats)
 
-    net = resnet101(kernel_size=k, input_size=3, num_classes=40).to(device)
+    net = resnet18(kernel_size=k, input_size=3, num_classes=40).to(device)
 
     start_time = time.time()
-    out, low_level_feats, out_coords = net(feats, coords, edge_index)
+    layer1_feat, layer2_feat, layer3_feat, layer4_feat = net(feats, coords, edge_index)
     logging.info('It took {:f}s'.format(time.time() - start_time))
     # out = out.mean(dim=1)
-    logging.info('Output size {}'.format(out.size()))
-    logging.info('Feats size {}'.format(low_level_feats.size()))
-    logging.info('Out coords size {}'.format(out_coords.size()))
+    logging.info('Output size {}'.format(layer4_feat.size()))
+    logging.info('Feats size {}'.format(layer1_feat.size()))
 
-    out.mean().backward()
+    layer4_feat.mean().backward()

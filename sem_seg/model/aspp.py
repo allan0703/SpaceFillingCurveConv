@@ -22,7 +22,6 @@ class ASPPConv(nn.Module):
         x = self.conv(x, coords, self.sigma)
         x = self.bn(x)
         x = self.relu(x)
-
         return x
 
 
@@ -36,9 +35,7 @@ class ASPPPooling(nn.Module):
 
     def forward(self, x):
         size = x.shape[-1]
-        # print('Before pool ', x.size())
         x = self.pool(x)
-        # print('After pool ', x.size())
         x = self.conv(x)
         if x.shape[0] > 1:
             x = self.bn(x)
@@ -127,3 +124,4 @@ if __name__ == '__main__':
     logging.info('Output size {}'.format(out.size()))
 
     out.mean().backward()
+

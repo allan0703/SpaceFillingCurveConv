@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import numpy as np
 import logging
 import time
 
@@ -10,54 +10,58 @@ __all__ = ['decoder']
 
 
 class DecoderConv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, drop, sigma=1.0):
+    def __init__(self, in_channels, out_channels, kernel_size, drop=0.5, sigma=1.0):
         super(DecoderConv, self).__init__()
         self.sigma = sigma
         self.conv = WeightedConv1D(in_channels, out_channels, kernel_size=kernel_size,
                                    stride=1, padding=kernel_size // 2)
-        self.bn = nn.BatchNorm1d(out_channels)
-        self.relu = nn.ReLU()
-        self.drop = nn.Dropout(drop)
+
+        nonlinear = [nn.BatchNorm1d(out_channels), nn.ReLU(inplace=True)]
+        if drop>0:
+            nonlinear.append(nn.Dropout(drop))
+        self.nonlinear = nn.Sequential(*nonlinear)
 
     def forward(self, x, coords):
-        x = self.relu(self.bn(self.conv(x, coords, self.sigma)))
-        x = self.drop(x)
-
+        x = self.conv(x, coords, self.sigma)
+        x = self.nonlinear(x)
         return x
 
 
 class Decoder(nn.Module):
     def __init__(self, num_classes, backbone='resnet18', kernel_size=9, sigma=1.0):
         super(Decoder, self).__init__()
+        channels = np.array([64, 128, 256])
         if backbone == 'resnet101':
-            low_level_inplanes = 512
-        elif backbone == 'resnet18':
-            low_level_inplanes = 128
-        elif backbone == 'xception':
-            low_level_inplanes = 128
-        else:
-            raise NotImplementedError
+            channels *= 4
 
-        self.conv1 = nn.Conv1d(low_level_inplanes, 48, 1, bias=False)
-        self.bn1 = nn.BatchNorm1d(48)
-        self.relu = nn.ReLU()
+        self.conv1 = DecoderConv(channels[-1]+256, 256, kernel_size=kernel_size, drop=0, sigma=sigma//2)
+        self.conv2 = DecoderConv(channels[-2]+256, 256, kernel_size=kernel_size, drop=0, sigma=sigma//4)
+        self.conv3 = DecoderConv(channels[-3]+256, 256, kernel_size=kernel_size, drop=0, sigma=sigma//8)
+        # self.conv4 = DecoderConv(channels[-4]+256, 256, kernel_size=kernel_size, drop=0, sigma=sigma//8)
 
-        self.last_conv1 = DecoderConv(304, 256, kernel_size=kernel_size, drop=0.5, sigma=sigma)
+        self.last_conv1 = DecoderConv(256, 256, kernel_size=kernel_size, drop=0.5, sigma=sigma)
         self.last_conv2 = DecoderConv(256, 256, kernel_size=kernel_size, drop=0.1, sigma=sigma)
         self.conv_out = nn.Conv1d(256, num_classes, kernel_size=1, stride=1)
         self._init_weight()
 
-    def forward(self, x, low_level_feat, coords):
-        low_level_feat = self.conv1(low_level_feat)
-        low_level_feat = self.bn1(low_level_feat)
-        low_level_feat = self.relu(low_level_feat)   # channels = 48
+    def forward(self, x, layer1_feat, layer2_feat, layer3_feat, coords1, coords2, coords3):
+        #
+        # low_level_feat = self.conv1(low_level_feat)
+        # low_level_feat = self.bn1(low_level_feat)
+        # low_level_feat = self.relu(low_level_feat)   # channels = 48
 
-        low_level_coords = coords[:, :, ::2]
-        x = weighted_interpolation(x, low_level_coords)  #
-        x = torch.cat((x, low_level_feat), dim=1)  # along channels
-        x = self.last_conv1(x, low_level_coords)
-        x = self.last_conv2(x, low_level_coords)
-        x = weighted_interpolation(x, coords)
+        x = weighted_interpolation(x, coords3)
+        x = self.conv1(torch.cat((x, layer3_feat), dim=1), coords3)
+
+        x = weighted_interpolation(x, coords2)
+        x = self.conv2(torch.cat((x, layer2_feat), dim=1), coords2)
+
+        x = weighted_interpolation(x, coords1)
+        x = self.conv3(torch.cat((x, layer1_feat), dim=1), coords1)
+
+        x = self.last_conv1(x, coords1)
+        x = self.last_conv2(x, coords1)
+        x = weighted_interpolation(x, coords1)
         x = self.conv_out(x)
 
         return x
@@ -117,15 +121,30 @@ if __name__ == '__main__':
     logger.setLevel(numeric_level)
 
     device = torch.device('cuda')
-    feats = torch.rand((4, 256, 128), dtype=torch.float).to(device)
-    lowlevel_feats = torch.rand((4, 64, 256), dtype=torch.float).to(device)
-    coords = torch.rand((4, 3, 128*8), dtype=torch.float).to(device)
-    k = 21
-
     net = Decoder(num_classes=20).to(device)
 
+
+    # feats = torch.rand((4, 256, 128), dtype=torch.float).to(device)
+    # lowlevel_feats = torch.rand((4, 64, 256), dtype=torch.float).to(device)
+    # coords = torch.rand((4, 3, 128*8), dtype=torch.float).to(device)
+    # k = 21
+    # start_time = time.time()
+    # out = net(feats, lowlevel_feats, coords)
+
+    x = torch.rand((4, 256, 512), dtype=torch.float).to(device)
+    layer1_feat = torch.rand((4, 64, 4096), dtype=torch.float).to(device)
+    layer2_feat = torch.rand((4, 128, 2048), dtype=torch.float).to(device)
+    layer3_feat = torch.rand((4, 256, 1024), dtype=torch.float).to(device)
+    # layer4_feat = torch.rand((4, 512, 512), dtype=torch.float).to(device)
+
+    coords1 = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
+    coords2 = torch.rand((4, 3, 2048), dtype=torch.float).to(device)
+    coords3 = torch.rand((4, 3, 1024), dtype=torch.float).to(device)
+    # coords4 = torch.rand((4, 3, 512), dtype=torch.float).to(device)
+
     start_time = time.time()
-    out = net(feats, lowlevel_feats, coords)
+    out = net(x, layer1_feat, layer2_feat, layer3_feat, coords1, coords2, coords3)
+
     logging.info('It took {:f}s'.format(time.time() - start_time))
     # out = out.mean(dim=1)
     logging.info('Output size {}'.format(out.size()))
