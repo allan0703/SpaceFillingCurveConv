@@ -14,7 +14,7 @@ class S3DISConfig:
     kernel_size = np.random.choice([3, 5, 9, 15])  # 5
     num_feats = 3  # np.random.choice([4, 9])  # np.random.choice([4, 5, 9])
     lr = np.random.choice([1e-3, 1e-4]) # 1e-4  #
-    batch_size = 32  # int(np.random.choice([8, 16]))
+    batch_size = 16  # int(np.random.choice([8, 16]))
     sigma = np.random.choice([0.01, 0.02, 0.05, 0.1, 0.5, 1.5, 2.5])  #  0.02
     augment = True  # np.random.choice([True, False])
     bias = False  # np.random.choice([True, False])
