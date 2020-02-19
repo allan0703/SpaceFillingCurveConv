@@ -10,8 +10,6 @@ from model import DeepLab
 import utils as utl
 import metrics as metrics
 
-
-# https://pytorch.org/docs/stable/notes/randomness.html
 clss = ['Bag', 'Bed', 'Bottle', 'Bowl', 'Chair', 'Clock', 'Dishwasher', 'Display', 'Door', 'Earphone',  # 0-9
         'Faucet', 'Hat', 'Keyboard', 'Knife', 'Lamp', 'Laptop', 'Microwave', 'Mug', 'Refrigerator', 'Scissors',
         # 10-19
