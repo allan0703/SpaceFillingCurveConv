@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 
-from train_modelnet.model import AlignedXception
-from train_modelnet.model import resnet18, resnet101
-from train_modelnet.model.aspp import aspp
-from train_modelnet.model.decoder import decoder
+from .xception import AlignedXception
+from .resnet import resnet18, resnet101
+from .aspp import aspp
+from .decoder import decoder
 
 __all__ = ['deeplab']
 

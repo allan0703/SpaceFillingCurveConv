@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from train_modelnet.model import WeightedConv1D
+from .weighted_conv import WeightedConv1D
 
 __all__ = ['decoder']
 
