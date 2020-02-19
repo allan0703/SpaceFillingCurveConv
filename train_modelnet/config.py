@@ -10,7 +10,7 @@ class S3DISConfig:
     num_classes = 40
 
     # Hyperparameters for training:
-    seed = 1
+    seed = np.random.randint(0, 20, 1)[0]
     kernel_size = np.random.choice([3, 5, 9, 15])  # 5
     num_feats = 3  # np.random.choice([4, 9])  # np.random.choice([4, 5, 9])
     lr = np.random.choice([1e-3, 1e-4]) # 1e-4  #

@@ -182,6 +182,12 @@ def main(args):
     print(dataset.config)
     utl.set_seed(dataset.config.seed)
 
+    # configurations = []
+    # for i in dir(dataset.config):
+    #     if i[0] !='_':
+    #         configurations.append(dataset.config)
+
+    # logging.info(dataset.config)
     train(dataset=dataset, model_dir=model_dir, writer=writer)
 
     # close Tensorboard writer
