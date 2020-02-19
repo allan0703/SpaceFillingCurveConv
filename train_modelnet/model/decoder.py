@@ -1,10 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import logging
-import time
 
-from model.weighted_conv import WeightedConv1D
+from train_modelnet.model import WeightedConv1D
 
 __all__ = ['decoder']
 

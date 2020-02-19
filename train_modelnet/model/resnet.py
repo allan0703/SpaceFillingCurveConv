@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import logging
 import time
-from gcn_lib.dense import GraphConv2d, DilatedKnn2d
-from model.weighted_conv import WeightedConv1D
+from train_modelnet.gcn_lib.dense import GraphConv2d
+from train_modelnet.model import WeightedConv1D
 
 
 __all__ = ['resnet18', 'resnet50', 'resnet101']

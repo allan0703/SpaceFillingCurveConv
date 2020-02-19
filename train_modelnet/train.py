@@ -3,32 +3,17 @@ import logging
 import torch
 import os
 
-import numpy as np
 import torch.nn as nn
 
 from tqdm import tqdm
 
 from model.deeplab import deeplab
 from model.unet import unet
-# from S3DIS import S3DIS
-from train_modelnet.dataset_modelnet import ModelNet
-# append upper directory to import utils.py and metrics.py
+from dataset_modelnet import ModelNet
 import sys
 sys.path.append('../')
 import utils as utl
 import metrics as metrics
-import sklearn.metrics as skmetrics
-
-# https://gist.github.com/ModarTensai/2328b13bdb11c6309ba449195a6b551a
-# np.random.seed(0)
-# random.seed(0)
-
-# https://pytorch.org/docs/stable/notes/randomness.html
-# torch.manual_seed(0)
-# torch.backends.cudnn.deterministic = True
-# torch.backends.cudnn.benchmark = False
-# non-determinism is unavoidable in some functions that use atomicAdd for example
-# such as torch.nn.functional.embedding_bag() and torch.bincount()
 
 
 def train(dataset, model_dir, writer):
@@ -67,7 +52,6 @@ def train(dataset, model_dir, writer):
     logging.info('TB logs and checkpoint will be saved in {}'.format(model_dir))
 
     phases = ['train', 'test']
-    # phases = ['test', 'test']
     # create metric trackers: we track lass, class accuracy, and overall accuracy
     trackers = {x: {'loss': metrics.LossMean(),
                     'acc': metrics.Accuracy(),

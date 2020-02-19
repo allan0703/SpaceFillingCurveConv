@@ -1,71 +1,91 @@
 from argparse import ArgumentParser
 import numpy as np
 import os
-from tqdm import tqdm, trange
+from tqdm import tqdm
+import glob
 import h5py
 import logging
 import time
 import uuid
 import pathlib
 
+from config import S3DISConfig
 from torch.utils.data import Dataset, DataLoader
 from hilbertcurve.hilbertcurve import HilbertCurve
 
-from config import S3DISConfig
+
+def load_data(root_dir, phase):
+    """
+    Load ModelNet40 data from h5 files
+
+    :param root_dir: Directory with Modelnet40 h5 data
+    :param phase: `train` or `test`
+
+    :return: 2 Numpy arrays for data (PxNx3) and labels (Px1)
+    """
+    all_data = []
+    all_label = []
+    for h5_name in tqdm(glob.glob(os.path.join(root_dir, 'ply_data_{}*.h5'.format(phase))),
+                        desc='Loading data for phase {}'.format(phase)):
+        f = h5py.File(h5_name, 'r')
+        data = f['data'][:].astype('float32')
+        label = f['label'][:].astype('int64')
+        f.close()
+
+        all_data.append(data)
+        all_label.append(label)
+
+    all_data = np.concatenate(all_data, axis=0)
+    all_label = np.concatenate(all_label, axis=0)
+
+    return np.nan_to_num(all_data), all_label
 
 
-# Augmentation functions
-def rotate_points(points):
-    # scenter points at origin for rotation
-    mins = points.max(axis=0) / 2.0
-    orig_points = points - np.array([mins[0], mins[1], 0.0])
+def translate_pointcloud(pointcloud):
+    """
+    Augment pointcloud using uniform translations
 
-    # random rotation around vertical (z) axis
-    theta = np.random.rand() * 2 * np.pi
+    :param pointcloud: Nx3 array of points
+    :return: Translated points (Nx3)
+    """
+    trans = 0.05 * np.random.randn(1, 3)
 
-    c, s = np.cos(theta), np.sin(theta)
-    R = np.array([[c, -s, 0],
-                  [s,  c, 0],
-                  [0,  0, 1]])
-
-    # rotate points and shift them back
-    rot_points = np.matmul(R, orig_points.T).T + np.array([mins[0], mins[1], 0.0])
-
-    return rot_points
+    translated_data = pointcloud + trans
+    return translated_data.astype('float32')
 
 
-def scale_points(points):
-    scale_factor = 0.8 + np.random.rand(3) * 0.4  # random scale between 0.8 and 1.2
-    scale_factor[0] *= np.random.rand() * 2 - 1  # random symmetry around x only
+def rotate_pointcloud(pointcloud):
+    """ Randomly rotate the point clouds to augument the dataset
+        rotation is per shape based along up direction
+        Input:
+          Nx3 array, original batch of point clouds
+        Return:
+          Nx3 array, rotated batch of point clouds
+    """
+    rotation_angle = np.random.uniform() * np.pi
+    cosval = np.cos(rotation_angle)
+    sinval = np.sin(rotation_angle)
+    rotation_matrix = np.array([[cosval, 0, sinval],
+                                [0, 1, 0],
+                                [-sinval, 0, cosval]])
 
-    return points * scale_factor
+    rotated_data = np.dot(pointcloud, rotation_matrix)
+
+    return rotated_data.astype('float32')
 
 
-def add_noise_points(points):
-    noise = np.random.normal(scale=0.001, size=points.shape)
+def scale_pointcloud(pointcloud):
+    """ Randomly scale a pointcloud
+        Input:
+          Nx3 array, original batch of point clouds
+        Return:
+          Nx3 array, scaled batch of point clouds
+    """
+    scale = 0.1 * np.random.rand(3) + 1.0
+    scale = np.clip(scale, 0.7, 1.3)
+    points_scaled = pointcloud * scale
 
-    return points + noise
-
-
-def get_hilbert_rotations(points, theta=np.pi):
-    c, s = np.cos(theta), np.sin(theta)
-    Rx = np.array([[1, 0, 0],
-                   [0, c, -s],
-                   [0, s, c]])
-    Ry = np.array([[c, 0, s],
-                   [0, 1, 0],
-                   [-s, 0, c]])
-    Rz = np.array([[c, -s, 0],
-                   [s, c, 0],
-                   [0, 0, 1]])
-
-    shift = points[:, :3].min(axis=1) + (points[:, :3].max(axis=1) - points[:, :3].min(axis=1)) / 2.0
-    data_shift = points[:, :3] - shift[:, np.newaxis]
-    rot_points_x = np.matmul(Rx, data_shift.T).T
-    rot_points_y = np.matmul(Ry, data_shift.T).T
-    rot_points_z = np.matmul(Rz, data_shift.T).T
-
-    return np.stack((data_shift, rot_points_x, rot_points_y, rot_points_z), axis=0)
+    return points_scaled.astype('float32')
 
 
 def get_edge_index(idx, k=9):
@@ -93,56 +113,64 @@ def get_edge_index(idx, k=9):
     return edge_index
 
 
-class S3DISDataset(Dataset):
-    def __init__(self, data_label, num_features=9, augment=False, sfc_neighbors=9, use_rotation=False):
+def shear_pointcloud(pointcloud):
+    """ Randomly shear a pointcloud
+        Input:
+          Nx3 array, original batch of point clouds
+        Return:
+          Nx3 array, sheared batch of point clouds
+    """
+    T = np.eye(3) + 0.1 * np.random.randn(3, 3)
+    points_sheared = np.dot(pointcloud, T)
+
+    return points_sheared.astype('float32')
+
+
+class ModelNet40(Dataset):
+    def __init__(self, data, label, augment=False, num_features=9, sfc_neighbors=9, use_rotation=False):
         self.augment = augment
+        self.data, self.label = data, label
         self.num_features = num_features
-        self.data, self.label = data_label
-        self.p = 7
-        self.p2 = 3
         self.neighbors = sfc_neighbors
-        # self.edge_index = get_edge_index_index(self.data.shape[1], sfc_neighbors)
+        self.p = 7  # hilbert iteration
+        self.p2 = 3
         self.use_rotation = use_rotation
+
+        # by changing the value of p, we can control the level of hilbert curve.
+        # this hyperparameter has to be careful and ideally, p should be different for each point cloud.
+        # (because the density distribution is different
 
         # compute hilbert order for voxelized space
         logging.info('Computing hilbert distances...')
         self.hilbert_curve = HilbertCurve(self.p, 3)
-        self.hilbert_curve_rgbz = HilbertCurve(self.p2, 6)
+        self.hilbert_curve_rgbz = HilbertCurve(self.p2, 3)
+        # different from voxelization, we are much more efficient
 
     def __len__(self):
         return self.data.shape[0]
 
     def __getitem__(self, item):
-        pointcloud = self.data[item, ...]
-        label = self.label[item, ...]
+        pointcloud = self.data[item, ...]  # todo: only have xyz??
+        label = self.label[item]
 
+        # augment data when requested
         if self.augment:
-            points = pointcloud[:, :3]
-            points = rotate_points(points)
-            points = scale_points(points)
-            points = add_noise_points(points)
-
-            pointcloud[:, :3] = points
-
-        # get coordinates
+            pointcloud = rotate_pointcloud(pointcloud)
+            pointcloud = translate_pointcloud(pointcloud)
+            pointcloud = scale_pointcloud(pointcloud)
+            # pointcloud = shear_pointcloud(pointcloud)
+        # normalize points
         coordinates = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
-        # z_rgb = np.concatenate((pointcloud[:, 2], pointcloud[:, 3:6]), axis=1)
-
-        # compute hilbert order
-        # here. We build a SFC-Curve by using the XYZ. norm the xyz
-        points_norm = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
+        points_norm = pointcloud - pointcloud.min(axis=0)
         points_norm /= points_norm.max(axis=0) + 1e-23
-        # z_rgb_norm = np.concatenate((points_norm[:, 2, np.newaxis], pointcloud[:, 3:6]), axis=1)
         # order points in hilbert order
         points_voxel = np.floor(points_norm * (2 ** self.p - 1))
-
-
         hilbert_dist = np.zeros(points_voxel.shape[0])
+
         for i in range(points_voxel.shape[0]):
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :].astype(int))
-        idx = np.argsort(hilbert_dist)  # index by using xyz
-
-        pointcloud, coordinates, label = pointcloud[idx, :], coordinates[idx, :], label[idx]
+        idx = np.argsort(hilbert_dist)
+        pointcloud, coordinates = pointcloud[idx, :], coordinates[idx, :]
         points_norm, points_voxel = points_norm[idx, :], points_voxel[idx, :]
 
         if self.use_rotation:
@@ -153,30 +181,19 @@ class S3DISDataset(Dataset):
                 hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[i, :].astype(int))
             idx2 = np.argsort(hilbert_dist)
         else:
-            xyz_rgb_norm = np.concatenate((points_norm, pointcloud[:, 3:6]), axis=1)
+            pointcloud1 = rotate_pointcloud(pointcloud)
+            points_norm1 = pointcloud1 - pointcloud1.min(axis=0)
+            points_norm1 /= points_norm1.max(axis=0) + 1e-23
+            xyz_rgb_norm = points_norm1  # np.concatenate((points_norm, pointcloud[:, 3:6]), axis=1)
             points_voxel1 = np.floor(xyz_rgb_norm * (2 ** self.p2 - 1))
             for i in range(points_voxel1.shape[0]):
                 hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel1[i, :].astype(int))
             idx2 = np.argsort(hilbert_dist)
-
         neighbors_edge_index = get_edge_index(idx2, self.neighbors)
-
-        # return appropriate number of features
-        if self.num_features == 4:
-            pointcloud = np.hstack((pointcloud[:, 3:6]/255., pointcloud[:, 2, np.newaxis]))
-        elif self.num_features == 5:
-            pointcloud = np.hstack((np.ones((pointcloud.shape[0], 1)), pointcloud[:, 3:6],
-                                    pointcloud[:, 2, np.newaxis]))
-        elif self.num_features == 9:
-            min_val = pointcloud[:, :3].min(axis=0)
-            pointcloud = np.hstack((pointcloud[:, :3] - min_val, pointcloud[:, 3:6], pointcloud[:, 6:9]))
-        else:
-            raise ValueError('Incorrect number of features provided. Values should be 4, 5, or 9, but {} provided'
-                             .format(self.num_features))
         return pointcloud, coordinates, label, neighbors_edge_index
 
 
-class S3DIS:
+class ModelNet:
     """
     Class to represent data from S3DIS dataset, to perform
     semantic segmentation.
@@ -279,8 +296,8 @@ class S3DIS:
             Y-m-d_H:M_prefixStr_lr_batchSize_modelName_augmentation_numEpochs__UUID
         """
         timestamp = time.strftime('%Y-%m-%d-%H-%M-%S')
-        experiment_string = '{}_{}_A{}_Cin{}_lr{}_B{}_K{}_Sigma{}_{}_{}_{}_{}_Epo{}_{}' \
-            .format(timestamp, self.config.dataset, self.config.test_area, self.config.num_feats, self.config.lr,
+        experiment_string = '{}_{}_Cin{}_lr{}_B{}_K{}_Sigma{}_{}_{}_{}_{}_Epo{}_{}' \
+            .format(timestamp, self.config.dataset,  self.config.num_feats, self.config.lr,
                     self.config.batch_size, self.config.kernel_size, self.config.sigma,  self.config.model,
                     self.config.backbone, 'augment' if self.config.augment else 'no-augment',
                     'bias' if self.config.bias else 'no-bias', self.config.max_epochs, uuid.uuid4())
@@ -291,71 +308,29 @@ class S3DIS:
 
         return experiment_dir
 
-    def _load_data(self):
-        # first we load the room file list
-        with open(os.path.join(self.config.root_dir, 'room_filelist.txt'), 'r') as f:
-            room_list = np.array([line.rstrip() for line in f.readlines()])
-
-        # load filenames
-        with open(os.path.join(self.config.root_dir, 'all_files.txt'), 'r') as f:
-            all_files = np.array([os.path.join(self.config.root_dir, os.path.basename(line.rstrip())) for line in f.readlines()])
-
-        all_data = []
-        all_label = []
-        # for h5_name in tqdm(glob.glob(os.path.join(root_dir, 'ply_data_all*.h5')), desc='Loading all data'):
-        for h5_name in tqdm(all_files, desc='Loading all data'):
-            f = h5py.File(h5_name, 'r')
-            data = f['data'][:].astype('float32')
-            label = f['label'][:].astype('int64')
-            f.close()
-
-            all_data.append(data)
-            all_label.append(label)
-
-        all_data = np.concatenate(all_data, axis=0)
-        all_label = np.concatenate(all_label, axis=0)
-
-        logging.info('Creating data splits for Area {}'.format(self.config.test_area))
-        # now we split data into train or test based on test area
-        test_idx = ['Area_{}'.format(self.config.test_area) in x for x in room_list]
-        train_idx = ['Area_{}'.format(self.config.test_area) not in x for x in room_list]
-
-        train_data = all_data[train_idx, ...]
-        train_label = all_label[train_idx, ...]
-
-        test_data = all_data[test_idx, ...]
-        test_label = all_label[test_idx, ...]
-
-        return train_data, train_label, test_data, test_label
-
     def get_dataloaders(self):
-        train_data, train_label, test_data, test_label = self._load_data()
-        # p = 7
-        #
-        # distances_file = os.path.join(self.config.root_dir, 'hilbert_distances_{:02d}.npy'.format(p))
-        #
-        # if os.path.isfile(distances_file):
-        #     logging.info('Loading distances file...')
-        #     hilbert_distances = np.load(distances_file)
-        # else:
-        #     hilbert_curve = HilbertCurve(p, 3)
-        #     grid = np.mgrid[0:2 ** p, 0:2 ** p, 0:2 ** p].reshape(3, -1).T
-        #     hilbert_distances = np.zeros(grid.shape[0])
-        #     for i in trange(grid.shape[0], desc='Computing hilbert distances...'):
-        #         hilbert_distances[i] = hilbert_curve.distance_from_coordinates(grid[i, :].astype(int))
-        #
-        #     logging.info('Saving distances file...')
-        #     np.save(distances_file, hilbert_distances)
+        train_data, train_label = load_data(root_dir=self.config.root_dir, phase='train')
+        test_data, test_label = load_data(root_dir=self.config.root_dir, phase='test')
+        """
+        Create Dataset and Dataloader classes of the Modelnet40 dataset, for
+        the phases required (`train`, `test`). Dataset can be downloaded from:
 
+            - https://shapenet.cs.stanford.edu/media/modelnet40_ply_hdf5_2048.zip
+
+        :param root_dir: Directory with `modelnet40_ply_hdf5_2048` folder
+        :param phases: List of phases. Should be from {`train`, `test`}
+        :param batch_size: Batch size
+        :param augment: If True then we use data augmentation on training
+        :return: 2 dictionaries, each containing Dataset or Dataloader for all phases
+        """
         datasets = {
-            'train': S3DISDataset(data_label=(train_data, train_label),
-                                  num_features=self.config.num_feats,
-                                  augment=self.config.augment),
-            'test': S3DISDataset(data_label=(test_data, test_label),
-                                 num_features=self.config.num_feats,
-                                 augment=False)
+            'train': ModelNet40(train_data, train_label,
+                                num_features=self.config.num_feats,
+                                augment=self.config.augment),
+            'test': ModelNet40(test_data, test_label,
+                               num_features=self.config.num_feats,
+                               augment=False)
         }
-
         dataloaders = {x: DataLoader(dataset=datasets[x],
                                      batch_size=self.config.batch_size,
                                      num_workers=4,
@@ -365,9 +340,19 @@ class S3DIS:
         return dataloaders
 
 
-if __name__ == '__main__':
-    parser = ArgumentParser()
 
+
+
+
+if __name__ == '__main__':
+    numeric_level = getattr(logging, 'INFO', None)
+    logging.basicConfig(format='%(asctime)s:%(levelname)s: %(message)s',
+                        level=numeric_level)
+    log_format = logging.Formatter('%(asctime)s [%(levelname)-5.5s] [%(filename)s:%(lineno)04d] %(message)s')
+    logger = logging.getLogger()
+    logger.setLevel(numeric_level)
+
+    parser = ArgumentParser()
     parser.add_argument('--root_dir', default='', type=str)
     parser.add_argument('--model_dir', default='', type=str)
     parser.add_argument('--test_area', default=5, type=int)
@@ -384,17 +369,26 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    args.root_dir = '/home/wangh0j/data/sfc/S3DIS/raw'
+    args.root_dir = '/home/wangh0j/data/sfc/modelnet40_ply_hdf5_2048'
     args.model_dir = '/home/wangh0j/SFC-Convs/log/'
 
-    dataset = S3DIS(args)
-    dataloaders = dataset.get_dataloaders()
+    datasets = ModelNet(args)
+    dataloaders = datasets.get_dataloaders()
 
-    for phase in ['train', 'test']:
+    # root_dir = '/home/wangh0j/data/sfc/modelnet40_ply_hdf5_2048'
+    phases = ['train', 'test']
+    # batch_size = 32
+    # augment = False
+    #
+    # datasets, dataloaders = get_modelnet40_dataloaders(root_dir, phases, batch_size, augment)
+
+    for phase in phases:
         print(phase.upper())
-        print('\tDataloder {}'.format(len(dataloaders[phase])))
+        print('\t Dataloder {}'.format(len(dataloaders[phase])))
         for i, (data, coords, seg_label, e) in enumerate(dataloaders[phase]):
-            print('\tData {} Coords {} Seg Label {}'
-                  .format(data.size(), coords.size(), seg_label.size(), e.size()))
+            print('\tData {} Label {} seg_label{} edge_index{} '.format(data.size(), coords.size(), seg_label.size(), e.size()))
             if i >= 3:
                 break
+
+    print('Test')
+    print('\t Dataloder {}'.format(len(dataloaders['test'])))
