@@ -153,8 +153,6 @@ class ResNet(nn.Module):
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
 
-        # self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
-        # self.sigma *= 4
         self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[0], sigma=self.sigma)
@@ -164,8 +162,6 @@ class ResNet(nn.Module):
         self.sigma *= 2
         self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[2], sigma=self.sigma)
-        self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
@@ -211,16 +207,9 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x, coords, edge_index):
-        # print('Size at input: {}'.format(x.size()))
-        # x = self.conv1(x)
-        # edge_index = self.knn_graph(coords)
-        # todo: replace knn_graph by Z-Color SFC neighbors
         x = self.conv1(x, coords, self.init_sigma, edge_index)
         x = self.bn1(x)
         x = self.relu(x)
-
-        # x = self.maxpool(x)
-        # coords = coords[:, :, ::4]
 
         x, coords, edge_index = self.layer1((x, coords, edge_index))
         low_level_feats = x

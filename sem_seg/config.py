@@ -4,28 +4,28 @@ import os
 
 class S3DISConfig:
     # Configuration of dataset and model:
-    dataset = 'S3DIS'
+    dataset = 'ModelNet'
     model = 'deeplab'  # np.random.choice(['unet', 'deeplab'])
     backbone = 'resnet18'  # np.random.choice(['resnet18', 'resnet101'])  # np.random.choice(['xception', 'resnet18', 'resnet101'])
-    num_classes = 13
+    num_classes = 40
 
     # Hyperparameters for training:
-    test_area = 5  # np.random.choice([1, 2, 3, 4, 5, 6])
-    kernel_size = 5  # np.random.choice([3, 5, 9, 15])
-    num_feats = 4  # np.random.choice([4, 9])  # np.random.choice([4, 5, 9])
-    lr = 1e-4  # np.random.choice([1e-3, 1e-4])
-    batch_size = 8  # int(np.random.choice([8, 16]))
-    sigma = 0.02  # np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
+    seed = 1
+    kernel_size = np.random.choice([3, 5, 9, 15])  # 5
+    num_feats = 3  # np.random.choice([4, 9])  # np.random.choice([4, 5, 9])
+    lr = np.random.choice([1e-3, 1e-4]) # 1e-4  #
+    batch_size = 32  # int(np.random.choice([8, 16]))
+    sigma = np.random.choice([0.01, 0.02, 0.05, 0.1, 0.5, 1.5, 2.5])  #  0.02
     augment = True  # np.random.choice([True, False])
     bias = False  # np.random.choice([True, False])
     p = 7  # hilbert order  todo: try different p
 
     # Training setup:
-    max_epochs = 300
-    min_epochs = 100
-    lr_decay = 0.9
-    lr_patience = 1
-    early_stopping = 5
+    max_epochs = 400
+    min_epochs = 200
+    early_stopping = 50
+    lr_decay = 1e-4
+    momentum = 0.9
 
     # GPUs:
     gpu_index = 0
@@ -58,7 +58,6 @@ class S3DISConfig:
             # hyperparameters for training
             f.write('# Training hyperparameters\n')
             f.write('# -----------------------------------#\n\n')
-            f.write('test_area = {:d}\n'.format(self.test_area))
             f.write('kernel_size = {:d}\n'.format(self.kernel_size))
             f.write('num_feats = {:d}\n'.format(self.num_feats))
             f.write('lr = {:.2e}\n'.format(self.lr))
@@ -71,10 +70,10 @@ class S3DISConfig:
             # training setup
             f.write('# Training setup\n')
             f.write('# -----------------------------------#\n\n')
+            f.write('seed = {:d}\n'.format(self.seed))
             f.write('min_epochs = {:d}\n'.format(self.min_epochs))
             f.write('max_epochs = {:d}\n'.format(self.max_epochs))
             f.write('lr_decay = {:f}\n'.format(self.lr_decay))
-            f.write('lr_patience = {:f}\n'.format(self.lr_patience))
             f.write('early_stopping = {:d}\n'.format(self.early_stopping))
 
             # GPUs
@@ -119,7 +118,6 @@ class S3DISConfig:
                     setattr(self, line_info[0], attr_type(line_info[2]))
 
     def dump_to_tensorboard(self, writer):
-        writer.add_scalar('config/test_area', self.test_area, 0)
         writer.add_scalar('config/kernel_size', self.kernel_size, 0)
         writer.add_scalar('config/num_feats', self.num_feats, 0)
         writer.add_scalar('config/lr', self.lr, 0)
@@ -131,7 +129,7 @@ class S3DISConfig:
         writer.add_scalar('config/min_epochs', self.min_epochs, 0)
         writer.add_scalar('config/max_epochs', self.max_epochs, 0)
         writer.add_scalar('config/lr_decay', self.lr_decay, 0)
-        writer.add_scalar('config/lr_patience', self.lr_patience, 0)
+        # writer.add_scalar('config/lr_patience', self.lr_patience, 0)
         writer.add_scalar('config/early_stopping', self.early_stopping, 0)
 
 

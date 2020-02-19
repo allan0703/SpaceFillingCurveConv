@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import logging
 import time
 
-from .weighted_conv import WeightedConv1D
+from model.weighted_conv import WeightedConv1D
 
 __all__ = ['decoder']
 
@@ -42,20 +42,22 @@ class Decoder(nn.Module):
         self.bn1 = nn.BatchNorm1d(48)
         self.relu = nn.ReLU()
 
-        self.last_conv1 = DecoderConv(304, 256, kernel_size=kernel_size, drop=0.5, sigma=sigma)
-        self.last_conv2 = DecoderConv(256, 256, kernel_size=kernel_size, drop=0.1, sigma=sigma)
+        self.fusion_conv = DecoderConv(304, 256, kernel_size=kernel_size, drop=0.5, sigma=sigma)
+        # self.classifier = nn.Sequential(DecoderConv([emb_dims * 2, 512], act='leakyrelu', norm='batch'),
+        #                                 torch.nn.Dropout(p=0.5),
+        #                                 DecoderConv([512, 256], act='leakyrelu', norm='batch'),
+        #                                 torch.nn.Dropout(p=0.5),
+        #                                 DecoderConv([256, num_classes], act=None, norm=None))
+        # self.last_conv1 = DecoderConv(304, 256, kernel_size=kernel_size, drop=0.5, sigma=sigma)
+        # self.last_conv2 = DecoderConv(256, 256, kernel_size=kernel_size, drop=0.1, sigma=sigma)
 
-        # self.last_conv = nn.Sequential(nn.Conv1d(304, 256, kernel_size=kernel_size, stride=1,
-        #                                          padding=kernel_size // 2, bias=False),
-        #                                nn.BatchNorm1d(256),
-        #                                nn.ReLU(),
-        #                                nn.Dropout(0.5),
-        #                                nn.Conv1d(256, 256, kernel_size=kernel_size, stride=1,
-        #                                          padding=kernel_size // 2, bias=False),
-        #                                nn.BatchNorm1d(256),
-        #                                nn.ReLU(),
-        #                                nn.Dropout(0.1),
-        self.conv_out = nn.Conv1d(256, num_classes, kernel_size=1, stride=1)
+        self.classifier = nn.Sequential(nn.Conv1d(512, 256, kernel_size=1, stride=1, bias=False),
+                                       nn.BatchNorm1d(256),
+                                       nn.ReLU(),
+                                       nn.Dropout(0.5),
+                                       nn.Conv1d(256, num_classes, kernel_size=1, stride=1, bias=False)
+                                        )
+        # self.conv_out = nn.Conv1d(256, num_classes, kernel_size=1, stride=1)
         self._init_weight()
 
     def forward(self, x, low_level_feat, coords):
@@ -65,11 +67,11 @@ class Decoder(nn.Module):
 
         # x = F.interpolate(x, size=low_level_feat.size()[-1], mode='linear', align_corners=True)
         x = torch.cat((x, low_level_feat), dim=1)
-        x = self.last_conv1(x, coords)
-        x = self.last_conv2(x, coords)
-        x = self.conv_out(x)
-
-        return x
+        fusion = self.fusion_conv(x, coords)
+        x1 = F.adaptive_max_pool1d(fusion, 1)
+        x2 = F.adaptive_avg_pool1d(fusion, 1)
+        logits = self.classifier(torch.cat((x1, x2), dim=1)).squeeze(-1).squeeze(-1)
+        return logits
 
     def _init_weight(self):
         for m in self.modules():

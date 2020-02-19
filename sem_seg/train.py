@@ -10,13 +10,14 @@ from tqdm import tqdm
 
 from model.deeplab import deeplab
 from model.unet import unet
-from S3DIS import S3DIS
-
+# from S3DIS import S3DIS
+from train_modelnet.dataset_modelnet import ModelNet
 # append upper directory to import utils.py and metrics.py
 import sys
 sys.path.append('../')
 import utils as utl
 import metrics as metrics
+import sklearn.metrics as skmetrics
 
 # https://gist.github.com/ModarTensai/2328b13bdb11c6309ba449195a6b551a
 # np.random.seed(0)
@@ -57,23 +58,19 @@ def train(dataset, model_dir, writer):
         model = nn.DataParallel(model)
 
     # create optimizer, loss function, and lr scheduler
-    optimizer = torch.optim.Adam(model.parameters(), lr=dataset.config.lr, weight_decay=1e-4)
-    criterion = nn.CrossEntropyLoss()
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                           mode='min',
-                                                           factor=dataset.config.lr_decay,
-                                                           patience=dataset.config.lr_patience,
-                                                           verbose=True)
+    optimizer = torch.optim.SGD(model.parameters(), lr=dataset.config.lr*100,
+                                momentum=dataset.config.momentum, weight_decay=dataset.config.lr_decay)
+    criterion = torch.nn.CrossEntropyLoss().cuda()
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, dataset.config.max_epochs, eta_min=dataset.config.lr)
 
     logging.info('Config {}'.format(dataset.config))
     logging.info('TB logs and checkpoint will be saved in {}'.format(model_dir))
 
     phases = ['train', 'test']
-
+    # phases = ['test', 'test']
     # create metric trackers: we track lass, class accuracy, and overall accuracy
     trackers = {x: {'loss': metrics.LossMean(),
                     'acc': metrics.Accuracy(),
-                    'iou': None,
                     'cm': metrics.ConfusionMatrix(num_classes=int(dataset.config.num_classes))}
                 for x in phases}
 
@@ -86,8 +83,8 @@ def train(dataset, model_dir, writer):
         'test_loss': float('inf'),
         'train_acc': 0.0,
         'test_acc': 0.0,
-        'train_mIoU': 0.0,
-        'test_mIoU': 0.0,
+        'train_mean_class_acc': 0.0,
+        'test_mean_class_acc': 0.0,
         'convergence_epoch': 0,
         'num_epochs_since_best_acc': 0
     }
@@ -109,7 +106,7 @@ def train(dataset, model_dir, writer):
                                                                                 phase))):
                 data = inputs[0].to(device, dtype=torch.float).permute(0, 2, 1)
                 coords = inputs[1].to(device, dtype=torch.float).permute(0, 2, 1)
-                label = inputs[2].to(device, dtype=torch.long)
+                label = inputs[2].to(device, dtype=torch.long).squeeze(-1)
                 edge_index = inputs[3].to(device, dtype=torch.long).permute(1,0,2,3)
 
                 # compute gradients on train only
@@ -130,15 +127,13 @@ def train(dataset, model_dir, writer):
             # compare with my metrics
             epoch_loss = trackers[phase]['loss'].result()
             epoch_overall_acc = trackers[phase]['cm'].result(metric='accuracy')
-            epoch_iou = trackers[phase]['cm'].result(metric='iou')
-            epoch_miou = epoch_iou.mean()
+            epoch_mean_class_acc = trackers[phase]['cm'].result(metric='class_accuracy').mean()
 
             logging.info('--------------------------------------------------------------------------------')
-            logging.info('[{}/{}] {} Loss: {:.2e}. Overall Acc: {:.4f}. mIoU {:.4f}'
+            logging.info('[{}/{}] {} Loss: {:.2e}. Overall Acc: {:.4f}. Mean Class Acc {:.4f}'
                          .format(epoch + 1, dataset.config.max_epochs, phase, epoch_loss,
-                                 epoch_overall_acc, epoch_miou))
-            iou_per_class_str = ' '.join(['{:.4f}'.format(s) for s in epoch_iou])
-            logging.info('IoU per class: {}'.format(iou_per_class_str))
+                                 epoch_overall_acc, epoch_mean_class_acc))
+
             logging.info('--------------------------------------------------------------------------------')
 
             # we update our learning rate scheduler if loss does not improve
@@ -147,16 +142,16 @@ def train(dataset, model_dir, writer):
                 writer.add_scalar('params/lr', optimizer.param_groups[0]['lr'], epoch + 1)
 
             writer.add_scalar('loss/epoch_{}'.format(phase), epoch_loss, epoch + 1)
-            writer.add_scalar('miou/epoch_{}'.format(phase), epoch_miou, epoch + 1)
+            writer.add_scalar('mean_class_acc/epoch_{}'.format(phase), epoch_mean_class_acc, epoch + 1)
             writer.add_scalar('acc_all/epoch_{}'.format(phase), epoch_overall_acc, epoch + 1)
 
         # after each epoch we update best state values as needed
         # first we save our state when we get better test accuracy
-        if best_state['test_mIoU'] > trackers['test']['cm'].result(metric='iou').mean():
+        if best_state['test_acc'] > trackers['test']['cm'].result(metric='accuracy'):
             best_state['num_epochs_since_best_acc'] += 1
         else:
-            logging.info('Got a new best model with mIoU {:.4f}'
-                         .format(trackers['test']['cm'].result(metric='iou').mean()))
+            logging.info('Got a new best model with overall acc {:.4f}'
+                         .format(trackers['test']['cm'].result(metric='accuracy')))
             best_state = {
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
@@ -165,8 +160,8 @@ def train(dataset, model_dir, writer):
                 'test_loss': trackers['test']['loss'].result(),
                 'train_acc': trackers['train']['cm'].result(metric='accuracy'),
                 'test_acc': trackers['test']['cm'].result(metric='accuracy'),
-                'train_mIoU': trackers['train']['cm'].result(metric='iou').mean(),
-                'test_mIoU': trackers['test']['cm'].result(metric='iou').mean(),
+                'train_mean_class_acc': trackers['train']['cm'].result(metric='class_accuracy').mean(),
+                'test_mean_class_acc': trackers['test']['cm'].result(metric='class_accuracy').mean(),
                 'convergence_epoch': epoch + 1,
                 'num_epochs_since_best_acc': 0
             }
@@ -188,8 +183,7 @@ def train(dataset, model_dir, writer):
 
 def main(args):
     # given program arguments, generate a config file
-    dataset = S3DIS(args)
-
+    dataset = ModelNet(args)
     # create a checkpoint directory
     model_dir = dataset.experiment_dir
 
@@ -202,6 +196,8 @@ def main(args):
     dataset.config.dump_to_tensorboard(writer=writer)
 
     print(dataset.config)
+    utl.set_seed(dataset.config.seed)
+
     train(dataset=dataset, model_dir=model_dir, writer=writer)
 
     # close Tensorboard writer
@@ -247,8 +243,5 @@ if __name__ == '__main__':
                         help='logging level')
 
     args = parser.parse_args()
-
-    if args.random_seed is not None:
-        np.random.seed(args.random_seed)
 
     main(args)
