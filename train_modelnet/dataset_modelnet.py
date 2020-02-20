@@ -183,9 +183,9 @@ class ModelNet40(Dataset):
         # if self.use_rotation:
         rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
         points_voxel_rotation = np.matmul(points_voxel, rotation_z).astype(int)
-        points_voxel_rotation[:, 0:2] += (2 ** self.p - 1)
+        points_voxel_rotation[:, 0:2] += (2 ** self.p2 - 1)
         for i in range(points_voxel.shape[0]):
-            hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[i, :].astype(int))
+            hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel_rotation[i, :].astype(int))
         idx2 = np.argsort(hilbert_dist)
         # else:
         #     pointcloud1 = rotate_pointcloud(pointcloud)
