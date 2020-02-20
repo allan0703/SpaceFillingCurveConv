@@ -30,13 +30,11 @@ def load_data(root_dir, phase):
         with h5py.File(h5_name, 'r') as f:
             data = f['data'][:].astype('float32')
             label = f['label'][:].astype('int64')
-
         all_data.append(data)
         all_label.append(label)
 
     all_data = np.concatenate(all_data, axis=0)
     all_label = np.concatenate(all_label, axis=0)
-
     return np.nan_to_num(all_data), all_label
 
 
@@ -146,10 +144,12 @@ class ModelNet40(Dataset):
         return self.data.shape[0]
 
     def __getitem__(self, item):
-        pointcloud = self.data[item, :self.num_points]  # todo: only have xyz??
+        pointcloud = self.data[item, :self.num_points, :]
         label = self.label[item]
         if self.augment:
             pointcloud = dgcnn_augment(pointcloud)
+
+            # below the data augmentation by ourself.
             # pointcloud = scale_pointcloud(pointcloud)
             # pointcloud = translate_pointcloud(pointcloud)
             # pointcloud = rotate_pointcloud(pointcloud)
@@ -161,7 +161,6 @@ class ModelNet40(Dataset):
         points_norm /= points_norm.max(axis=0) + 1e-23
         points_voxel = np.floor(points_norm * (2 ** self.p - 1))
         hilbert_dist = np.zeros(points_voxel.shape[0])
-
         for i in range(points_voxel.shape[0]):
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :].astype(int))
         idx = np.argsort(hilbert_dist)
@@ -325,6 +324,23 @@ class ModelNet:
                        for x in ['train', 'test']}
 
         return dataloaders
+
+
+def vis_data(pointcloud):
+    import pyvista as pv
+    plotter = pv.Plotter()
+    points_voxelized = pointcloud
+    point_cloud = pv.PolyData(points_voxelized)
+    plotter.show_grid()
+    plotter.add_mesh(point_cloud, point_size=10., render_points_as_spheres=True)
+
+    cells = np.full((pointcloud.shape[0] - 1, 3), 2, dtype=np.int)
+    cells[:, 1] = np.arange(0, pointcloud.shape[0] - 1, dtype=np.int)
+    cells[:, 2] = np.arange(1, pointcloud.shape[0], dtype=np.int)
+    point_cloud.lines = cells
+    plotter.add_mesh(point_cloud, color='green', point_size=20., line_width=5.0, render_points_as_spheres=True)
+
+    plotter.show()
 
 
 if __name__ == '__main__':

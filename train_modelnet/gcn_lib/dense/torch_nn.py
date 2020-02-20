@@ -53,7 +53,7 @@ class MLP(Seq):
 
 
 class BasicConv(Seq):
-    def __init__(self, channels, act='relu', norm=None, bias=True):
+    def __init__(self, channels, act='relu', norm=None, bias=False):
         m = []
         for i in range(1, len(channels)):
             m.append(Conv2d(channels[i - 1], channels[i], 1, bias=bias))

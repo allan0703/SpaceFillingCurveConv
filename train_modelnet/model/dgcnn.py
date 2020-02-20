@@ -21,14 +21,12 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         low_level_inplanes = 512
 
-        self.fusion_conv = BasicConv([low_level_inplanes, 512], act='leakyrelu', norm='batch')
-        self.classifier = nn.Sequential(BasicConv([512 * 2, 512], act='leakyrelu', norm='batch'),
+        self.fusion_conv = BasicConv([low_level_inplanes, 1024], act='leakyrelu', norm='batch')
+        self.classifier = nn.Sequential(BasicConv([1024 * 2, 512], act='leakyrelu', norm='batch'),
                                         torch.nn.Dropout(0.5),
                                         BasicConv([512, 256], act='leakyrelu', norm='batch'),
                                         torch.nn.Dropout(0.5),
                                         BasicConv([256, num_classes], act=None, norm=None))
-
-        # self.conv_out = nn.Conv1d(256, num_classes, kernel_size=1, stride=1)
         self._init_weight()
 
     def forward(self, x, coords):
@@ -60,8 +58,14 @@ class DGCNN(nn.Module):
     def forward(self, x, coords, edge_index=None):
         edge_index = self.knn(x)  # test our knn
         out1 = self.conv1(x.unsqueeze(-1), edge_index)
+
+        edge_index = self.knn(out1)
         out2 = self.conv2(out1.unsqueeze(-1), edge_index)
+
+        edge_index = self.knn(out2)
         out3 = self.conv3(out2.unsqueeze(-1), edge_index)
+
+        edge_index = self.knn(out3)
         out4 = self.conv4(out3.unsqueeze(-1), edge_index)
         out = self.decoder((out1, out2, out3, out4), coords)
         return out
