@@ -75,7 +75,7 @@ class DGCNN(nn.Module):
         self.decoder = Decoder(num_classes, backbone='resnet14', kernel_size=1, sigma=1.0)
 
     def forward(self, x, coords, edge_index=None):
-        edge_index = self.knn(x)  # test our knn
+        # edge_index = self.knn(x)  # test our knn
         out = self.conv1(x.unsqueeze(-1), edge_index)
         low_level_feats = out
         out = self.conv2(out.unsqueeze(-1), edge_index)

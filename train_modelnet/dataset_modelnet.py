@@ -180,22 +180,15 @@ class ModelNet40(Dataset):
         pointcloud, coordinates = pointcloud[idx, :], coordinates[idx, :]
         points_norm, points_voxel = points_norm[idx, :], points_voxel[idx, :]
 
-        # if self.use_rotation:
         rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
-        points_voxel_rotation = np.matmul(points_voxel, rotation_z).astype(int)
-        points_voxel_rotation[:, 0:2] += (2 ** self.p2 - 1)
+        points_voxel_rotation = np.matmul(pointcloud, rotation_z.T)
+        points_norm = points_voxel_rotation - points_voxel_rotation.min(axis=0)
+        points_norm /= points_norm.max(axis=0) + 1e-23
+        points_voxel = np.floor(points_norm * (2 ** self.p2 - 1))
         for i in range(points_voxel.shape[0]):
-            hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel_rotation[i, :].astype(int))
+            hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel[i, :].astype(int))
         idx2 = np.argsort(hilbert_dist)
-        # else:
-        #     pointcloud1 = rotate_pointcloud(pointcloud)
-        #     points_norm1 = pointcloud1 - pointcloud1.min(axis=0)
-        #     points_norm1 /= points_norm1.max(axis=0) + 1e-23
-        #     xyz_rgb_norm = points_norm1  # np.concatenate((points_norm, pointcloud[:, 3:6]), axis=1)
-        #     points_voxel1 = np.floor(xyz_rgb_norm * (2 ** self.p2 - 1))
-        #     for i in range(points_voxel1.shape[0]):
-        #         hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel1[i, :].astype(int))
-        #     idx2 = np.argsort(hilbert_dist)
+
         neighbors_edge_index = get_edge_index(idx2, self.neighbors)
         return pointcloud, coordinates, label, neighbors_edge_index
 
