@@ -5,6 +5,8 @@ from .xception import AlignedXception
 from .resnet import resnet14, resnet18, resnet101
 from .aspp import aspp
 from .decoder import decoder
+from gcn_lib.dense import DilatedKnn2d
+
 
 __all__ = ['deeplab']
 
@@ -14,6 +16,7 @@ class DeepLab(nn.Module):
         super(DeepLab, self).__init__()
         in_channels = 64+128+256+512
         out_channels = 512
+        self.knn = DilatedKnn2d(kernel_size, dilation=1, self_loop=False)
         if backbone == 'resnet14':
             self.backbone = resnet14(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
             sigma *= 4
@@ -36,6 +39,7 @@ class DeepLab(nn.Module):
         self.decoder = decoder(out_channels, num_classes, kernel_size=kernel_size, sigma=sigma)
 
     def forward(self, input, coords, edge_index):
+        edge_index = self.knn(input)  # test our knn todo: remove this later
         x, coords = self.backbone(input, coords, edge_index)
         x = self.aspp(x, coords)
         x = self.decoder(x, coords)
