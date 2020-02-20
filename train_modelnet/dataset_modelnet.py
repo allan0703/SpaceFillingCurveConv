@@ -331,6 +331,7 @@ class ModelNet:
             'train': ModelNet40(train_data, train_label,
                                 num_features=self.config.num_feats,
                                 num_points=self.config.num_points,
+                                # sfc_neighbors=self.config.k # knn neighboors
                                 augment=self.config.augment),
             'test': ModelNet40(test_data, test_label,
                                num_features=self.config.num_feats,

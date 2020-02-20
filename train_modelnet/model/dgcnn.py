@@ -65,9 +65,9 @@ class Decoder(nn.Module):
 
 
 class DGCNN(nn.Module):
-    def __init__(self, input_size=3, num_classes=40):
+    def __init__(self, input_size=3, num_classes=40, kernel_size=9):
         super(DGCNN, self).__init__()
-        self.knn = DilatedKnn2d(9, dilation=1, self_loop=False)
+        self.knn = DilatedKnn2d(kernel_size, dilation=1, self_loop=False)
         self.conv1 = Edgeconv(input_size, 64)
         self.conv2 = Edgeconv(64, 128)
         self.conv3 = Edgeconv(128, 256)
