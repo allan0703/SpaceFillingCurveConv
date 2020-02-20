@@ -121,6 +121,15 @@ def shear_pointcloud(pointcloud):
     return points_sheared.astype('float32')
 
 
+def dgcnn_augment(pointcloud):
+    xyz1 = np.random.uniform(low=2. / 3., high=3. / 2., size=[3])
+    xyz2 = np.random.uniform(low=-0.2, high=0.2, size=[3])
+
+    translated_pointcloud = np.add(np.multiply(pointcloud, xyz1), xyz2).astype('float32')
+    np.random.shuffle(translated_pointcloud)
+    return translated_pointcloud
+
+
 class ModelNet40(Dataset):
     def __init__(self, data, label, augment=False, num_features=9, sfc_neighbors=9, num_points=1024):
         self.augment = augment
@@ -150,10 +159,11 @@ class ModelNet40(Dataset):
 
         # augment data when requested
         if self.augment:
-            pointcloud = scale_pointcloud(pointcloud)
-            pointcloud = translate_pointcloud(pointcloud)
-            pointcloud = rotate_pointcloud(pointcloud)
-            pointcloud = shear_pointcloud(pointcloud)
+            pointcloud = dgcnn_augment(pointcloud)
+            # pointcloud = scale_pointcloud(pointcloud)
+            # pointcloud = translate_pointcloud(pointcloud)
+            # pointcloud = rotate_pointcloud(pointcloud)
+            # pointcloud = shear_pointcloud(pointcloud)
         # normalize points
         coordinates = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
         points_norm = pointcloud - pointcloud.min(axis=0)

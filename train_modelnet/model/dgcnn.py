@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import logging
 import time
-from gcn_lib.dense import GraphConv2d
+from gcn_lib.dense import GraphConv2d, DilatedKnn2d
 from model.decoder import Decoder
 
 
@@ -19,19 +19,20 @@ class Edgeconv(nn.Module):
 class DGCNN(nn.Module):
     def __init__(self, input_size=3, num_classes=40):
         super(DGCNN, self).__init__()
-
+        self.knn = DilatedKnn2d(9, dilation=1, self_loop=False)
         self.conv1 = Edgeconv(input_size, 64)
         self.conv2 = Edgeconv(64, 128)
         self.conv3 = Edgeconv(128, 256)
         self.conv4 = Edgeconv(256, 256)
         self.decoder = Decoder(num_classes, backbone='resnet14', kernel_size=1, sigma=1.0)
 
-    def forward(self, x, coords, endge_index):
-        out = self.conv1(x.unsqueeze(-1), endge_index)
+    def forward(self, x, coords, edge_index=None):
+        edge_index = self.knn(x)
+        out = self.conv1(x.unsqueeze(-1), edge_index)
         low_level_feats = out
-        out = self.conv2(out.unsqueeze(-1), endge_index)
-        out = self.conv3(out.unsqueeze(-1), endge_index)
-        out = self.conv4(out.unsqueeze(-1), endge_index)
+        out = self.conv2(out.unsqueeze(-1), edge_index)
+        out = self.conv3(out.unsqueeze(-1), edge_index)
+        out = self.conv4(out.unsqueeze(-1), edge_index)
         out = self.decoder(out, low_level_feats, coords)
         return out
 
@@ -44,7 +45,7 @@ def dgcnn(input_size=3, num_classes=40):
 
 
 if __name__ == '__main__':
-    from gcn_lib.dense import DilatedKnn2d
+
     numeric_level = getattr(logging, 'INFO', None)
     logging.basicConfig(format='%(asctime)s:%(levelname)s: %(message)s',
                         level=numeric_level)
