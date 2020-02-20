@@ -233,8 +233,8 @@ if __name__ == '__main__':
                         help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str,
                         help='logging level')
-    parser.add_argument('--knn_time', default=None, type=int,
-                        help='odd value for kernel size')
+    parser.add_argument('--knn_time', default=None, type=int)
+    parser.add_argument('--num_neighbors', default=None, type=int)
 
     args = parser.parse_args()
 

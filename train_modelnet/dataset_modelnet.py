@@ -266,6 +266,9 @@ class ModelNet:
         if args.knn_time is not None:
             config.knn_time = args.knn_time
 
+        if args.num_neighbors is not None:
+            config.num_neighbors = args.num_neighbors
+
         config.gpu_index = args.gpu
         config.multi_gpu = args.multi_gpu
         config.root_dir = args.root_dir
@@ -312,7 +315,7 @@ class ModelNet:
             'train': ModelNet40(train_data, train_label,
                                 num_features=self.config.num_feats,
                                 num_points=self.config.num_points,
-                                num_neighbors=self.config.num_neighbors, # knn neighboors
+                                num_neighbors=self.config.num_neighbors,  # knn neighboors
                                 augment=self.config.augment),
             'test': ModelNet40(test_data, test_label,
                                num_features=self.config.num_feats,
