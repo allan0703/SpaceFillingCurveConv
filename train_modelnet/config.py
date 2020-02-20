@@ -5,7 +5,7 @@ import os
 class S3DISConfig:
     # Configuration of dataset and model:
     dataset = 'ModelNet'
-    model = 'deeplab'  # np.random.choice(['unet', 'deeplab', 'dgcnn'])
+    model = 'dgcnn'  # np.random.choice(['unet', 'deeplab', 'dgcnn'])
     backbone = 'resnet14'  # np.random.choice(['resnet18', 'resnet101'])  # np.random.choice(['xception', 'resnet18', 'resnet101'])
     num_classes = 40
     num_points = 1024
@@ -16,10 +16,13 @@ class S3DISConfig:
     num_feats = 3  # np.random.choice([4, 9])  # np.random.choice([4, 5, 9])
     lr = 1e-3  # np.random.choice([1e-3, 1e-4]) # 1e-4  #
     batch_size = 16  # int(np.random.choice([8, 16]))
-    sigma = np.random.choice([0.01, 0.02, 0.05, 0.1, 0.5, 1.5, 2.5])  #  0.02
+    sigma = 0.05  # np.random.choice([0.01, 0.02, 0.05, 0.1, 0.5, 1.5, 2.5])  #  0.02
     augment = True  # np.random.choice([True, False])
     bias = False
     p = 7  # hilbert order  todo: try different p
+
+    num_neighbors = 10
+    knn_time = 2  # todo: for debuging DGCNN
 
     # Training setup:
     max_epochs = 400

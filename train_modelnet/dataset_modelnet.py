@@ -128,12 +128,12 @@ def dgcnn_augment(pointcloud):
 
 
 class ModelNet40(Dataset):
-    def __init__(self, data, label, augment=False, num_features=9, sfc_neighbors=9, num_points=1024):
+    def __init__(self, data, label, augment=False, num_features=9, num_neighbors=9, num_points=1024):
         self.augment = augment
         self.data, self.label = data, label
         self.num_features = num_features
         self.num_points = num_points
-        self.neighbors = sfc_neighbors
+        self.neighbors = num_neighbors
         self.p = 7  # hilbert iteration
         self.p2 = 3
         logging.info('Computing hilbert distances...')
@@ -263,6 +263,9 @@ class ModelNet:
         if args.bias is not None:
             config.bias = args.bias
 
+        if args.knn_time is not None:
+            config.knn_time = args.knn_time
+
         config.gpu_index = args.gpu
         config.multi_gpu = args.multi_gpu
         config.root_dir = args.root_dir
@@ -309,11 +312,12 @@ class ModelNet:
             'train': ModelNet40(train_data, train_label,
                                 num_features=self.config.num_feats,
                                 num_points=self.config.num_points,
-                                # sfc_neighbors=self.config.k # knn neighboors
+                                num_neighbors=self.config.num_neighbors, # knn neighboors
                                 augment=self.config.augment),
             'test': ModelNet40(test_data, test_label,
                                num_features=self.config.num_feats,
                                num_points=self.config.num_points,
+                               num_neighbors=self.config.num_neighbors,
                                augment=False)
         }
         dataloaders = {x: DataLoader(dataset=datasets[x],

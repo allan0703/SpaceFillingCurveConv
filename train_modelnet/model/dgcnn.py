@@ -46,9 +46,10 @@ class Decoder(nn.Module):
 
 
 class DGCNN(nn.Module):
-    def __init__(self, input_size=3, num_classes=40, kernel_size=9):
+    def __init__(self, input_size=3, num_classes=40, knn=9, knn_time=4):
         super(DGCNN, self).__init__()
-        self.knn = DilatedKnn2d(kernel_size, dilation=1, self_loop=False)
+        self.knn = DilatedKnn2d(knn, dilation=1, self_loop=False)
+        self.knn_time = knn_time
         self.conv1 = Edgeconv(input_size, 64)
         self.conv2 = Edgeconv(64, 64)
         self.conv3 = Edgeconv(64, 128)
@@ -56,26 +57,30 @@ class DGCNN(nn.Module):
         self.decoder = Decoder(num_classes, backbone='resnet14', kernel_size=1, sigma=1.0)
 
     def forward(self, x, coords, edge_index=None):
-        edge_index = self.knn(x)  # test our knn
+        if self.knn_time > 0:
+            edge_index = self.knn(x)  # test our knn
         out1 = self.conv1(x.unsqueeze(-1), edge_index)
 
-        edge_index = self.knn(out1)
+        if self.knn_time > 1:
+            edge_index = self.knn(out1)
         out2 = self.conv2(out1.unsqueeze(-1), edge_index)
 
-        edge_index = self.knn(out2)
+        if self.knn_time > 2:
+            edge_index = self.knn(out2)
         out3 = self.conv3(out2.unsqueeze(-1), edge_index)
 
-        edge_index = self.knn(out3)
+        if self.knn_time > 3:
+            edge_index = self.knn(out3)
         out4 = self.conv4(out3.unsqueeze(-1), edge_index)
         out = self.decoder((out1, out2, out3, out4), coords)
         return out
 
 
-def dgcnn(input_size=3, num_classes=40):
+def dgcnn(input_size=3, num_classes=40, knn=9, knn_time=4):
     r"""ResNet-14 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
     """
-    return DGCNN(input_size, num_classes)
+    return DGCNN(input_size, num_classes, knn, knn_time)
 
 
 if __name__ == '__main__':

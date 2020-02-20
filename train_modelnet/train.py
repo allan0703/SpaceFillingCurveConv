@@ -32,7 +32,10 @@ def train(dataset, model_dir, writer):
         model = unet(input_size=dataset.config.num_feats, num_classes=dataset.config.num_classes,
                      kernel_size=dataset.config.kernel_size).to(device)
     elif dataset.config.model == 'dgcnn':
-        model = dgcnn(dataset.config.num_feats, num_classes=dataset.config.num_classes).to(device)
+        model = dgcnn(dataset.config.num_feats,
+                      dataset.config.num_classes,
+                      knn=dataset.config.num_neighbors,
+                      knn_time=dataset.config.knn_time).to(device)
     else:
         model = deeplab(backbone=dataset.config.backbone, input_size=dataset.config.num_feats,
                         num_classes=dataset.config.num_classes, kernel_size=dataset.config.kernel_size,
@@ -230,6 +233,8 @@ if __name__ == '__main__':
                         help='optional random seed')
     parser.add_argument('--loglevel', default='INFO', type=str,
                         help='logging level')
+    parser.add_argument('--knn_time', default=None, type=int,
+                        help='odd value for kernel size')
 
     args = parser.parse_args()
 
