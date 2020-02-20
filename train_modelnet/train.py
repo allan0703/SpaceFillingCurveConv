@@ -1,12 +1,9 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import os
 import logging
 import torch
-import os
-
 import torch.nn as nn
-
 from tqdm import tqdm
-
 from model.deeplab import deeplab
 from model.unet import unet
 from model.dgcnn import dgcnn

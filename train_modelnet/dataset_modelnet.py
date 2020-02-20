@@ -159,12 +159,14 @@ class ModelNet40(Dataset):
 
         # augment data when requested
         if self.augment:
-            pointcloud = dgcnn_augment(pointcloud)
-            # pointcloud = scale_pointcloud(pointcloud)
-            # pointcloud = translate_pointcloud(pointcloud)
-            # pointcloud = rotate_pointcloud(pointcloud)
-            # pointcloud = shear_pointcloud(pointcloud)
+            # pointcloud = dgcnn_augment(pointcloud)
+            pointcloud = scale_pointcloud(pointcloud)
+            pointcloud = translate_pointcloud(pointcloud)
+            pointcloud = rotate_pointcloud(pointcloud)
+            pointcloud = shear_pointcloud(pointcloud)
         # normalize points
+
+        # todo: some problems with neighboors.
         coordinates = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
         points_norm = pointcloud - pointcloud.min(axis=0)
         points_norm /= points_norm.max(axis=0) + 1e-23
