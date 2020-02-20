@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .weighted_conv import WeightedConv1D
-from gcn_lib.sparse import MLP
+from .common import MLP
 
 __all__ = ['decoder']
 
