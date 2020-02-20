@@ -3,13 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import logging
 import time
-from gcn_lib.dense import GraphConv2d, DilatedKnn2d
+from gcn_lib.dense import GraphConv2d, DilatedKnn2d, BasicConv
 
 
 class Edgeconv(nn.Module):
     def __init__(self, in_planes, out_planes):
         super(Edgeconv, self).__init__()
-        self.conv1 = GraphConv2d(in_planes, out_planes, conv='edge', act='relu', norm='batch', bias=False)
+        self.conv1 = GraphConv2d(in_planes, out_planes, conv='edge', act='leakyrelu', norm='batch', bias=False)
 
     def forward(self, x, edge_index=None):
         x = self.conv1(x, edge_index)
@@ -19,39 +19,22 @@ class Edgeconv(nn.Module):
 class Decoder(nn.Module):
     def __init__(self, num_classes, backbone='xception', kernel_size=9, sigma=1.0):
         super(Decoder, self).__init__()
-        if backbone == 'resnet101':
-            low_level_inplanes = 256
-        elif backbone == 'resnet18' or "resnet14":
-            low_level_inplanes = 64
-        elif backbone == 'xception':
-            low_level_inplanes = 128
-        else:
-            raise NotImplementedError
+        low_level_inplanes = 512
 
-        self.conv1 = nn.Conv1d(low_level_inplanes, 48, 1, bias=False)
-        self.bn1 = nn.BatchNorm1d(48)
-        self.relu = nn.ReLU()
+        self.fusion_conv = BasicConv([low_level_inplanes, 512], act='leakyrelu', norm='batch')
+        self.classifier = nn.Sequential(BasicConv([512 * 2, 512], act='leakyrelu', norm='batch'),
+                                        torch.nn.Dropout(0.5),
+                                        BasicConv([512, 256], act='leakyrelu', norm='batch'),
+                                        torch.nn.Dropout(0.5),
+                                        BasicConv([256, num_classes], act=None, norm=None))
 
-        self.fusion_conv = nn.Conv1d(304, 256, kernel_size=1, bias=False)
-        self.classifier = nn.Sequential(nn.Conv1d(512, 256, kernel_size=1, stride=1, bias=False),
-                                       nn.BatchNorm1d(256),
-                                       nn.ReLU(),
-                                       nn.Dropout(0.5),
-                                       nn.Conv1d(256, num_classes, kernel_size=1, stride=1, bias=False)
-                                        )
         # self.conv_out = nn.Conv1d(256, num_classes, kernel_size=1, stride=1)
         self._init_weight()
 
-    def forward(self, x, low_level_feat, coords):
-        low_level_feat = self.conv1(low_level_feat)
-        low_level_feat = self.bn1(low_level_feat)
-        low_level_feat = self.relu(low_level_feat)
-
-        # x = F.interpolate(x, size=low_level_feat.size()[-1], mode='linear', align_corners=True)
-        x = torch.cat((x, low_level_feat), dim=1)
-        fusion = self.fusion_conv(x)
-        x1 = F.adaptive_max_pool1d(fusion, 1)
-        x2 = F.adaptive_avg_pool1d(fusion, 1)
+    def forward(self, x, coords):
+        fusion = self.fusion_conv(torch.cat(x, dim=1).unsqueeze(-1))
+        x1 = F.adaptive_max_pool2d(fusion, 1)
+        x2 = F.adaptive_avg_pool2d(fusion, 1)
         logits = self.classifier(torch.cat((x1, x2), dim=1)).squeeze(-1).squeeze(-1)
         return logits
 
@@ -69,19 +52,18 @@ class DGCNN(nn.Module):
         super(DGCNN, self).__init__()
         self.knn = DilatedKnn2d(kernel_size, dilation=1, self_loop=False)
         self.conv1 = Edgeconv(input_size, 64)
-        self.conv2 = Edgeconv(64, 128)
-        self.conv3 = Edgeconv(128, 256)
-        self.conv4 = Edgeconv(256, 256)
+        self.conv2 = Edgeconv(64, 64)
+        self.conv3 = Edgeconv(64, 128)
+        self.conv4 = Edgeconv(128, 256)
         self.decoder = Decoder(num_classes, backbone='resnet14', kernel_size=1, sigma=1.0)
 
     def forward(self, x, coords, edge_index=None):
         edge_index = self.knn(x)  # test our knn
-        out = self.conv1(x.unsqueeze(-1), edge_index)
-        low_level_feats = out
-        out = self.conv2(out.unsqueeze(-1), edge_index)
-        out = self.conv3(out.unsqueeze(-1), edge_index)
-        out = self.conv4(out.unsqueeze(-1), edge_index)
-        out = self.decoder(out, low_level_feats, coords)
+        out1 = self.conv1(x.unsqueeze(-1), edge_index)
+        out2 = self.conv2(out1.unsqueeze(-1), edge_index)
+        out3 = self.conv3(out2.unsqueeze(-1), edge_index)
+        out4 = self.conv4(out3.unsqueeze(-1), edge_index)
+        out = self.decoder((out1, out2, out3, out4), coords)
         return out
 
 
@@ -93,7 +75,6 @@ def dgcnn(input_size=3, num_classes=40):
 
 
 if __name__ == '__main__':
-
     numeric_level = getattr(logging, 'INFO', None)
     logging.basicConfig(format='%(asctime)s:%(levelname)s: %(message)s',
                         level=numeric_level)

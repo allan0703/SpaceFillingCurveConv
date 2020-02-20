@@ -124,7 +124,6 @@ def shear_pointcloud(pointcloud):
 def dgcnn_augment(pointcloud):
     xyz1 = np.random.uniform(low=2. / 3., high=3. / 2., size=[3])
     xyz2 = np.random.uniform(low=-0.2, high=0.2, size=[3])
-
     translated_pointcloud = np.add(np.multiply(pointcloud, xyz1), xyz2).astype('float32')
     np.random.shuffle(translated_pointcloud)
     return translated_pointcloud
@@ -139,16 +138,9 @@ class ModelNet40(Dataset):
         self.neighbors = sfc_neighbors
         self.p = 7  # hilbert iteration
         self.p2 = 3
-
-        # by changing the value of p, we can control the level of hilbert curve.
-        # this hyperparameter has to be careful and ideally, p should be different for each point cloud.
-        # (because the density distribution is different
-
-        # compute hilbert order for voxelized space
         logging.info('Computing hilbert distances...')
         self.hilbert_curve = HilbertCurve(self.p, 3)
         self.hilbert_curve_rgbz = HilbertCurve(self.p2, 3)
-        # different from voxelization, we are much more efficient
 
     def __len__(self):
         return self.data.shape[0]
@@ -156,21 +148,17 @@ class ModelNet40(Dataset):
     def __getitem__(self, item):
         pointcloud = self.data[item, :self.num_points]  # todo: only have xyz??
         label = self.label[item]
-
-        # augment data when requested
         if self.augment:
             pointcloud = dgcnn_augment(pointcloud)
             # pointcloud = scale_pointcloud(pointcloud)
             # pointcloud = translate_pointcloud(pointcloud)
             # pointcloud = rotate_pointcloud(pointcloud)
             # pointcloud = shear_pointcloud(pointcloud)
-        # normalize points
 
-        # todo: some problems with neighboors.
+        # SFC 1
         coordinates = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
         points_norm = pointcloud - pointcloud.min(axis=0)
         points_norm /= points_norm.max(axis=0) + 1e-23
-        # order points in hilbert order
         points_voxel = np.floor(points_norm * (2 ** self.p - 1))
         hilbert_dist = np.zeros(points_voxel.shape[0])
 
@@ -178,8 +166,8 @@ class ModelNet40(Dataset):
             hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel[i, :].astype(int))
         idx = np.argsort(hilbert_dist)
         pointcloud, coordinates = pointcloud[idx, :], coordinates[idx, :]
-        points_norm, points_voxel = points_norm[idx, :], points_voxel[idx, :]
 
+        # SFC 2 neighbors, by rotating the object
         rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
         points_voxel_rotation = np.matmul(pointcloud, rotation_z.T)
         points_norm = points_voxel_rotation - points_voxel_rotation.min(axis=0)
@@ -188,7 +176,6 @@ class ModelNet40(Dataset):
         for i in range(points_voxel.shape[0]):
             hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel[i, :].astype(int))
         idx2 = np.argsort(hilbert_dist)
-
         neighbors_edge_index = get_edge_index(idx2, self.neighbors)
         return pointcloud, coordinates, label, neighbors_edge_index
 

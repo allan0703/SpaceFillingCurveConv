@@ -57,10 +57,10 @@ class BasicConv(Seq):
         m = []
         for i in range(1, len(channels)):
             m.append(Conv2d(channels[i - 1], channels[i], 1, bias=bias))
-            if act:
-                m.append(act_layer(act))
             if norm:
                 m.append(norm_layer(norm, channels[-1]))
+            if act:
+                m.append(act_layer(act))
         super(BasicConv, self).__init__(*m)
 
 
