@@ -46,7 +46,8 @@ def train(dataset, model_dir, writer):
     optimizer = torch.optim.SGD(model.parameters(), lr=dataset.config.lr*100,
                                 momentum=dataset.config.momentum, weight_decay=dataset.config.lr_decay)
     criterion = torch.nn.CrossEntropyLoss().cuda()
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, dataset.config.max_epochs, eta_min=dataset.config.lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, dataset.config.max_epochs,
+                                                           eta_min=dataset.config.lr)
 
     logging.info('Config {}'.format(dataset.config))
     logging.info('TB logs and checkpoint will be saved in {}'.format(model_dir))
@@ -91,7 +92,7 @@ def train(dataset, model_dir, writer):
                 data = inputs[0].to(device, dtype=torch.float).permute(0, 2, 1)
                 coords = inputs[1].to(device, dtype=torch.float).permute(0, 2, 1)
                 label = inputs[2].to(device, dtype=torch.long).squeeze(-1)
-                edge_index = inputs[3].to(device, dtype=torch.long).permute(1,0,2,3)
+                edge_index = inputs[3].to(device, dtype=torch.long).permute(1, 0, 2, 3)
 
                 # compute gradients on train only
                 with torch.set_grad_enabled(phase == 'train'):
@@ -203,8 +204,6 @@ if __name__ == '__main__':
                         help='root directory containing S3DIS data')
     parser.add_argument('--model_dir', default='../log', type=str,
                         help='root directory containing S3DIS data')
-    parser.add_argument('--test_area', default=5, type=int,
-                        help='area to use for testing')
     parser.add_argument('--multi_gpu', default=False, action='store_true',
                         help='use multiple GPUs (all available)')
     parser.add_argument('--gpu', default=0, type=int,
@@ -223,9 +222,9 @@ if __name__ == '__main__':
                         help='learning rate')
     parser.add_argument('--dilation', default=1, type=int,
                         help='dilation to use')
-    parser.add_argument('--augment', default=False, action='store_true',
+    parser.add_argument('--augment', default=None, action='store_true',
                         help='whether to augment training data')
-    parser.add_argument('--bias', default=False, action='store_true',
+    parser.add_argument('--bias', default=None, action='store_true',
                         help='use bias in convolutions')
     parser.add_argument('--random_seed', default=None, type=int,
                         help='optional random seed')

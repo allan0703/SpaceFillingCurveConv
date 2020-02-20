@@ -6,7 +6,7 @@ class S3DISConfig:
     # Configuration of dataset and model:
     dataset = 'ModelNet'
     model = 'deeplab'  # np.random.choice(['unet', 'deeplab'])
-    backbone = 'resnet18'  # np.random.choice(['resnet18', 'resnet101'])  # np.random.choice(['xception', 'resnet18', 'resnet101'])
+    backbone = 'resnet14'  # np.random.choice(['resnet18', 'resnet101'])  # np.random.choice(['xception', 'resnet18', 'resnet101'])
     num_classes = 40
 
     # Hyperparameters for training:

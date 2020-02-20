@@ -231,6 +231,13 @@ def _resnet(block, layers, k, **kwargs):
     return model
 
 
+def resnet14(kernel_size=9, **kwargs):
+    r"""ResNet-14 model from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    """
+    return _resnet(BasicBlock, [1, 1, 1, 1], kernel_size, **kwargs)
+
+
 def resnet18(kernel_size=9, **kwargs):
     r"""ResNet-18 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from .xception import AlignedXception
-from .resnet import resnet18, resnet101
+from .resnet import resnet14, resnet18, resnet101
 from .aspp import aspp
 from .decoder import decoder
 
@@ -12,8 +12,12 @@ __all__ = ['deeplab']
 class DeepLab(nn.Module):
     def __init__(self, backbone='xception', input_size=3, output_stride=16, num_classes=21, kernel_size=9, sigma=1.0):
         super(DeepLab, self).__init__()
-
-        if backbone == 'resnet18':
+        if backbone == 'resnet14':
+            self.backbone = resnet14(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
+            sigma *= 4
+            self.aspp = aspp(in_channels=512, out_channels=256, output_stride=output_stride,
+                             kernel_size=kernel_size, sigma=sigma)
+        elif backbone == 'resnet18':
             self.backbone = resnet18(input_size=input_size, kernel_size=kernel_size, sigma=sigma)
             sigma *= 4
             self.aspp = aspp(in_channels=512, out_channels=256, output_stride=output_stride,

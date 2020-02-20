@@ -48,7 +48,7 @@ def translate_pointcloud(pointcloud):
     :param pointcloud: Nx3 array of points
     :return: Translated points (Nx3)
     """
-    trans = 0.05 * np.random.randn(1, 3)
+    trans = np.random.uniform(low=-0.2, high=0.2, size=[3])
 
     translated_data = pointcloud + trans
     return translated_data.astype('float32')
@@ -62,15 +62,13 @@ def rotate_pointcloud(pointcloud):
         Return:
           Nx3 array, rotated batch of point clouds
     """
-    rotation_angle = np.random.uniform() * np.pi
-    cosval = np.cos(rotation_angle)
-    sinval = np.sin(rotation_angle)
-    rotation_matrix = np.array([[cosval, 0, sinval],
-                                [0, 1, 0],
-                                [-sinval, 0, cosval]])
+    theta = np.random.rand() * 2 * np.pi
 
-    rotated_data = np.dot(pointcloud, rotation_matrix)
-
+    c, s = np.cos(theta), np.sin(theta)
+    R = np.array([[c, -s, 0],
+                  [s,  c, 0],
+                  [0,  0, 1]])
+    rotated_data = np.matmul(pointcloud, R.T)
     return rotated_data.astype('float32')
 
 
@@ -81,10 +79,8 @@ def scale_pointcloud(pointcloud):
         Return:
           Nx3 array, scaled batch of point clouds
     """
-    scale = 0.1 * np.random.rand(3) + 1.0
-    scale = np.clip(scale, 0.7, 1.3)
+    scale = np.random.uniform(low=2./3., high=3./2., size=[3])
     points_scaled = pointcloud * scale
-
     return points_scaled.astype('float32')
 
 
@@ -155,10 +151,10 @@ class ModelNet40(Dataset):
 
         # augment data when requested
         if self.augment:
-            pointcloud = rotate_pointcloud(pointcloud)
-            pointcloud = translate_pointcloud(pointcloud)
             pointcloud = scale_pointcloud(pointcloud)
-            # pointcloud = shear_pointcloud(pointcloud)
+            pointcloud = translate_pointcloud(pointcloud)
+            pointcloud = rotate_pointcloud(pointcloud)
+            pointcloud = shear_pointcloud(pointcloud)
         # normalize points
         coordinates = pointcloud[:, :3] - pointcloud[:, :3].min(axis=0)
         points_norm = pointcloud - pointcloud.min(axis=0)
@@ -173,22 +169,22 @@ class ModelNet40(Dataset):
         pointcloud, coordinates = pointcloud[idx, :], coordinates[idx, :]
         points_norm, points_voxel = points_norm[idx, :], points_voxel[idx, :]
 
-        if self.use_rotation:
-            rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
-            points_voxel_rotation = np.matmul(points_voxel, rotation_z).astype(int)
-            points_voxel_rotation[:, 0:2] += (2 ** self.p - 1)
-            for i in range(points_voxel.shape[0]):
-                hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[i, :].astype(int))
-            idx2 = np.argsort(hilbert_dist)
-        else:
-            pointcloud1 = rotate_pointcloud(pointcloud)
-            points_norm1 = pointcloud1 - pointcloud1.min(axis=0)
-            points_norm1 /= points_norm1.max(axis=0) + 1e-23
-            xyz_rgb_norm = points_norm1  # np.concatenate((points_norm, pointcloud[:, 3:6]), axis=1)
-            points_voxel1 = np.floor(xyz_rgb_norm * (2 ** self.p2 - 1))
-            for i in range(points_voxel1.shape[0]):
-                hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel1[i, :].astype(int))
-            idx2 = np.argsort(hilbert_dist)
+        # if self.use_rotation:
+        rotation_z = np.transpose([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+        points_voxel_rotation = np.matmul(points_voxel, rotation_z).astype(int)
+        points_voxel_rotation[:, 0:2] += (2 ** self.p - 1)
+        for i in range(points_voxel.shape[0]):
+            hilbert_dist[i] = self.hilbert_curve.distance_from_coordinates(points_voxel_rotation[i, :].astype(int))
+        idx2 = np.argsort(hilbert_dist)
+        # else:
+        #     pointcloud1 = rotate_pointcloud(pointcloud)
+        #     points_norm1 = pointcloud1 - pointcloud1.min(axis=0)
+        #     points_norm1 /= points_norm1.max(axis=0) + 1e-23
+        #     xyz_rgb_norm = points_norm1  # np.concatenate((points_norm, pointcloud[:, 3:6]), axis=1)
+        #     points_voxel1 = np.floor(xyz_rgb_norm * (2 ** self.p2 - 1))
+        #     for i in range(points_voxel1.shape[0]):
+        #         hilbert_dist[i] = self.hilbert_curve_rgbz.distance_from_coordinates(points_voxel1[i, :].astype(int))
+        #     idx2 = np.argsort(hilbert_dist)
         neighbors_edge_index = get_edge_index(idx2, self.neighbors)
         return pointcloud, coordinates, label, neighbors_edge_index
 
@@ -259,9 +255,6 @@ class ModelNet:
 
         if args.backbone is not None:
             config.backbone = args.backbone
-
-        if args.test_area is not None:
-            config.test_area = args.test_area
 
         if args.kernel_size is not None:
             config.kernel_size = args.kernel_size
@@ -338,10 +331,6 @@ class ModelNet:
                        for x in ['train', 'test']}
 
         return dataloaders
-
-
-
-
 
 
 if __name__ == '__main__':
