@@ -40,14 +40,6 @@ class Decoder(nn.Module):
         self.relu = nn.ReLU()
 
         self.fusion_conv = DecoderConv(304, 256, kernel_size=kernel_size, drop=0.5, sigma=sigma)
-        # self.classifier = nn.Sequential(DecoderConv([emb_dims * 2, 512], act='leakyrelu', norm='batch'),
-        #                                 torch.nn.Dropout(p=0.5),
-        #                                 DecoderConv([512, 256], act='leakyrelu', norm='batch'),
-        #                                 torch.nn.Dropout(p=0.5),
-        #                                 DecoderConv([256, num_classes], act=None, norm=None))
-        # self.last_conv1 = DecoderConv(304, 256, kernel_size=kernel_size, drop=0.5, sigma=sigma)
-        # self.last_conv2 = DecoderConv(256, 256, kernel_size=kernel_size, drop=0.1, sigma=sigma)
-
         self.classifier = nn.Sequential(nn.Conv1d(512, 256, kernel_size=1, stride=1, bias=False),
                                        nn.BatchNorm1d(256),
                                        nn.ReLU(),

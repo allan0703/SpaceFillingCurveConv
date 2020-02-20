@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 from model.deeplab import deeplab
 from model.unet import unet
+from model.dgcnn import dgcnn
 from dataset_modelnet import ModelNet
 import sys
 sys.path.append('../')
@@ -33,6 +34,8 @@ def train(dataset, model_dir, writer):
     if dataset.config.model == 'unet':
         model = unet(input_size=dataset.config.num_feats, num_classes=dataset.config.num_classes,
                      kernel_size=dataset.config.kernel_size).to(device)
+    elif dataset.config.model == 'dgcnn':
+        model = dgcnn(dataset.config.num_feats, num_classes=dataset.config.num_classes).to(device)
     else:
         model = deeplab(backbone=dataset.config.backbone, input_size=dataset.config.num_feats,
                         num_classes=dataset.config.num_classes, kernel_size=dataset.config.kernel_size,

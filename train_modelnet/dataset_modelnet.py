@@ -27,10 +27,9 @@ def load_data(root_dir, phase):
     all_label = []
     for h5_name in tqdm(glob.glob(os.path.join(root_dir, 'ply_data_{}*.h5'.format(phase))),
                         desc='Loading data for phase {}'.format(phase)):
-        f = h5py.File(h5_name, 'r')
-        data = f['data'][:].astype('float32')
-        label = f['label'][:].astype('int64')
-        f.close()
+        with h5py.File(h5_name, 'r') as f:
+            data = f['data'][:].astype('float32')
+            label = f['label'][:].astype('int64')
 
         all_data.append(data)
         all_label.append(label)
@@ -123,14 +122,14 @@ def shear_pointcloud(pointcloud):
 
 
 class ModelNet40(Dataset):
-    def __init__(self, data, label, augment=False, num_features=9, sfc_neighbors=9, use_rotation=False):
+    def __init__(self, data, label, augment=False, num_features=9, sfc_neighbors=9, num_points=1024):
         self.augment = augment
         self.data, self.label = data, label
         self.num_features = num_features
+        self.num_points = num_points
         self.neighbors = sfc_neighbors
         self.p = 7  # hilbert iteration
         self.p2 = 3
-        self.use_rotation = use_rotation
 
         # by changing the value of p, we can control the level of hilbert curve.
         # this hyperparameter has to be careful and ideally, p should be different for each point cloud.
@@ -146,7 +145,7 @@ class ModelNet40(Dataset):
         return self.data.shape[0]
 
     def __getitem__(self, item):
-        pointcloud = self.data[item, ...]  # todo: only have xyz??
+        pointcloud = self.data[item, :self.num_points]  # todo: only have xyz??
         label = self.label[item]
 
         # augment data when requested
@@ -319,9 +318,11 @@ class ModelNet:
         datasets = {
             'train': ModelNet40(train_data, train_label,
                                 num_features=self.config.num_feats,
+                                num_points=self.config.num_points,
                                 augment=self.config.augment),
             'test': ModelNet40(test_data, test_label,
                                num_features=self.config.num_feats,
+                               num_points=self.config.num_points,
                                augment=False)
         }
         dataloaders = {x: DataLoader(dataset=datasets[x],
