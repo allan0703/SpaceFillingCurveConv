@@ -2,64 +2,44 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .weighted_conv import WeightedConv1D
+from gcn_lib.sparse import MLP
 
 __all__ = ['decoder']
 
 
 class DecoderConv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, drop, sigma=1.0):
+    def __init__(self, in_channels, out_channels, kernel_size, drop=None, sigma=1.0):
         super(DecoderConv, self).__init__()
         self.sigma = sigma
         self.conv = WeightedConv1D(in_channels, out_channels, kernel_size=kernel_size,
                                    stride=1, padding=kernel_size // 2)
-        self.bn = nn.BatchNorm1d(out_channels)
-        self.relu = nn.ReLU()
-        self.drop = nn.Dropout(drop)
+
+        unlinear = [nn.BatchNorm1d(out_channels), nn.LeakyReLU()]
+        if drop is not None:
+            unlinear.append(nn.Dropout(drop))
+        self.unlinear = nn.Sequential(*unlinear)
 
     def forward(self, x, coords):
-        x = self.relu(self.bn(self.conv(x, coords, self.sigma)))
-        x = self.drop(x)
-
+        x = self.conv(x, coords, self.sigma)
+        x = self.unlinear(x)
         return x
 
 
 class Decoder(nn.Module):
-    def __init__(self, num_classes, backbone='xception', kernel_size=9, sigma=1.0):
+    def __init__(self, in_channles, num_classes, kernel_size=9, sigma=1.0):
         super(Decoder, self).__init__()
-        if backbone == 'resnet101':
-            low_level_inplanes = 256
-        elif backbone == 'resnet18' or "resnet14":
-            low_level_inplanes = 64
-        elif backbone == 'xception':
-            low_level_inplanes = 128
-        else:
-            raise NotImplementedError
-
-        self.conv1 = nn.Conv1d(low_level_inplanes, 48, 1, bias=False)
-        self.bn1 = nn.BatchNorm1d(48)
-        self.relu = nn.ReLU()
-
-        self.fusion_conv = DecoderConv(304, 256, kernel_size=kernel_size, drop=0.5, sigma=sigma)
-        self.classifier = nn.Sequential(nn.Conv1d(512, 256, kernel_size=1, stride=1, bias=False),
-                                       nn.BatchNorm1d(256),
-                                       nn.ReLU(),
-                                       nn.Dropout(0.5),
-                                       nn.Conv1d(256, num_classes, kernel_size=1, stride=1, bias=False)
-                                        )
-        # self.conv_out = nn.Conv1d(256, num_classes, kernel_size=1, stride=1)
+        self.classifier = nn.Sequential(MLP([in_channles * 2, 512], act='leakyrelu', norm='batch'),
+                                        torch.nn.Dropout(0.5),
+                                        MLP([512, 256], act='leakyrelu', norm='batch'),
+                                        torch.nn.Dropout(0.5),
+                                        MLP([256, num_classes], act=None, norm=None))
         self._init_weight()
 
-    def forward(self, x, low_level_feat, coords):
-        low_level_feat = self.conv1(low_level_feat)
-        low_level_feat = self.bn1(low_level_feat)
-        low_level_feat = self.relu(low_level_feat)
-
-        # x = F.interpolate(x, size=low_level_feat.size()[-1], mode='linear', align_corners=True)
-        x = torch.cat((x, low_level_feat), dim=1)
-        fusion = self.fusion_conv(x, coords)
-        x1 = F.adaptive_max_pool1d(fusion, 1)
-        x2 = F.adaptive_avg_pool1d(fusion, 1)
-        logits = self.classifier(torch.cat((x1, x2), dim=1)).squeeze(-1).squeeze(-1)
+    def forward(self, x, coords):
+        # fusion = self.fusion_conv(x, coords)
+        x1 = F.adaptive_max_pool1d(x, 1)
+        x2 = F.adaptive_avg_pool1d(x, 1)
+        logits = self.classifier(torch.cat((x1, x2), dim=1).squeeze(-1)).squeeze(-1)
         return logits
 
     def _init_weight(self):

@@ -20,7 +20,7 @@ class convKxK(nn.Module):
     def __init__(self, in_planes, out_planes, stride=1, k=9, dilation=1):
         super(convKxK, self).__init__()
         padding = dilation*(k // 2)
-        self.conv1 = GraphConv2d(in_planes, in_planes, conv='edge', act='relu', norm='batch', bias=False)
+        self.conv1 = GraphConv2d(in_planes, in_planes, conv='edge', act='leakyrelu', norm='batch', bias=False)
         self.conv2 = WeightedConv1D(in_planes, out_planes, k, dilation, padding, stride)
 
     def forward(self, x, coords, sigma=0.02, edge_index=None):
@@ -88,7 +88,6 @@ class Bottleneck(nn.Module):
         norm_layer = nn.BatchNorm1d
 
         width = int(planes * (base_width / 64.)) * groups
-        # Both self.conv2 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv1x1(inplanes, width)
         self.bn1 = norm_layer(width)
         self.conv2 = convKxK(width, width, stride, k, dilation)
@@ -211,19 +210,19 @@ class ResNet(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
 
-        x, coords, edge_index = self.layer1((x, coords, edge_index))
-        low_level_feats = x
+        x1, coords, edge_index = self.layer1((x, coords, edge_index))
 
         # edge_index = self.knn_graph(x)
-        x, coords, edge_index = self.layer2((x, coords, edge_index))
+        x2, coords, edge_index = self.layer2((x1, coords, edge_index))
 
         # edge_index = self.knn_graph(x)
-        x, coords, edge_index = self.layer3((x, coords, edge_index))
+        x3, coords, edge_index = self.layer3((x2, coords, edge_index))
 
         # edge_index = self.knn_graph(x)
-        x, coords, edge_index = self.layer4((x, coords, edge_index))
+        x4, coords, edge_index = self.layer4((x3, coords, edge_index))
 
-        return x, low_level_feats, coords
+        x = torch.cat((x1, x2, x3, x4), dim=1)
+        return x, coords
 
 
 def _resnet(block, layers, k, **kwargs):

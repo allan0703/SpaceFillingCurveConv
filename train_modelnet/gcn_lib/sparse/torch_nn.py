@@ -66,15 +66,15 @@ class MultiSeq(Seq):
 #
 
 class MLP(nn.Module):
-    def __init__(self, channels, act='relu', norm=None, bias=True):
+    def __init__(self, channels, act='relu', norm=None, bias=False):
         super(MLP, self).__init__()
         m = []
         for i in range(1, len(channels)):
             m.append(Lin(channels[i - 1], channels[i], bias))
-            if act:
-                m.append(act_layer(act))
             if norm:
                 m.append(norm_layer(norm, channels[-1]))
+            if act:
+                m.append(act_layer(act))
         self.body = Seq(*m)
 
     def forward(self, x, edge_index=None):

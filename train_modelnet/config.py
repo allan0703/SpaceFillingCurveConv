@@ -5,7 +5,7 @@ import os
 class S3DISConfig:
     # Configuration of dataset and model:
     dataset = 'ModelNet'
-    model = 'dgcnn'  # np.random.choice(['unet', 'deeplab', 'dgcnn'])
+    model = 'deeplab'  # np.random.choice(['unet', 'deeplab', 'dgcnn'])
     backbone = 'resnet14'  # np.random.choice(['resnet18', 'resnet101'])  # np.random.choice(['xception', 'resnet18', 'resnet101'])
     num_classes = 40
     num_points = 1024

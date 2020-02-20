@@ -148,7 +148,6 @@ class ModelNet40(Dataset):
         label = self.label[item]
         if self.augment:
             pointcloud = dgcnn_augment(pointcloud)
-
             # below the data augmentation by ourself.
             # pointcloud = scale_pointcloud(pointcloud)
             # pointcloud = translate_pointcloud(pointcloud)

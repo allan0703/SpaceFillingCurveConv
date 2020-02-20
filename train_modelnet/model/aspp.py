@@ -98,7 +98,6 @@ class ASPP(nn.Module):
             # print('Current size {}'.format(res[-1].size()))
         res.append(self.pool(x))
         res = torch.cat(res, dim=1)
-        # print('Size before project {}'.format(res.size()))
         return self.project(res)
 
 
