@@ -21,7 +21,7 @@ class S3DISConfig:
     bias = False
     p = 7  # hilbert order  todo: try different p
 
-    num_neighbors = 10
+    num_neighbors = 9
     knn_time = 2  # todo: for debuging DGCNN
 
     # Training setup:
