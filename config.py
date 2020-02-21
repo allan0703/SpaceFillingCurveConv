@@ -3,7 +3,7 @@ import os
 
 
 class PartnetConfig:
-    dataset = 'Partnet'
+    dataset = 'sem_seg_h5'
     model = 'deeplab'  # np.random.choice(['unet', 'deeplab'])
     backbone = 'resnet18'  # np.random.choice(['xception', 'resnet18', 'resnet101'])
     num_classes = 13        # todo different
