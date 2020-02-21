@@ -25,7 +25,7 @@ class S3DISConfig:
     min_epochs = 100
     lr_decay = 0.9
     lr_patience = 1
-    early_stopping = 5
+    early_stopping = 50
 
     # GPUs:
     gpu_index = 0
