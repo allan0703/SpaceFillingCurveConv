@@ -22,7 +22,7 @@ class S3DISConfig:
 
     # Training setup:
     max_epochs = 300
-    min_epochs = 100
+    min_epochs = 200
     lr_decay = 0.9
     lr_patience = 1
     early_stopping = 50
