@@ -5,7 +5,6 @@ import torch
 __all__ = ['Accuracy', 'ClassAccuracy', 'LossMean']
 
 
-# todo: learn how to write in this way, good.
 class ConfusionMatrix(object):
     """
     Calculates the confusion matrix of a multiclass classifier
