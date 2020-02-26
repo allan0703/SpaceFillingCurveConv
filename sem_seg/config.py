@@ -21,7 +21,7 @@ class S3DISConfig:
     p = 7  # hilbert order  todo: try different p
 
     # Training setup:
-    max_epochs = 300
+    max_epochs = 400
     min_epochs = 200
     lr_decay = 0.9
     lr_patience = 1

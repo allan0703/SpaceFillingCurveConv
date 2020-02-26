@@ -59,11 +59,13 @@ def train(dataset, model_dir, writer):
     # create optimizer, loss function, and lr scheduler
     optimizer = torch.optim.Adam(model.parameters(), lr=dataset.config.lr, weight_decay=1e-4)
     criterion = nn.CrossEntropyLoss()
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                           mode='min',
-                                                           factor=dataset.config.lr_decay,
-                                                           patience=dataset.config.lr_patience,
-                                                           verbose=True)
+    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+    #                                                        mode='min',
+    #                                                        factor=dataset.config.lr_decay,
+    #                                                        patience=dataset.config.lr_patience,
+    #                                                        verbose=True)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, dataset.config.max_epochs,
+                                                           eta_min=dataset.config.lr)
 
     logging.info('Config {}'.format(dataset.config))
     logging.info('TB logs and checkpoint will be saved in {}'.format(model_dir))
