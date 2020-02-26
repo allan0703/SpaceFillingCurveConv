@@ -20,7 +20,7 @@ class convKxK(nn.Module):
     def __init__(self, in_planes, out_planes, stride=1, k=9, dilation=1):
         super(convKxK, self).__init__()
         padding = dilation*(k // 2)
-        self.conv1 = GraphConv2d(in_planes, in_planes, conv='edge', act='relu', norm='batch', bias=False)
+        self.conv1 = GraphConv2d(in_planes, in_planes, conv='gna', act='relu', norm='batch', bias=False)
         self.conv2 = WeightedConv1D(in_planes, out_planes, k, dilation, padding, stride)
 
     def forward(self, x, coords, sigma=0.02, edge_index=None):
