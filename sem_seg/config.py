@@ -6,7 +6,7 @@ class S3DISConfig:
     # Configuration of dataset and model:
     dataset = 'S3DIS'
     model = 'deeplab'  # np.random.choice(['unet', 'deeplab'])
-    backbone = 'resnet18'  # np.random.choice(['resnet18', 'resnet101'])  # np.random.choice(['xception', 'resnet18', 'resnet101'])
+    backbone = 'resnet5'  # np.random.choice(['resnet18', 'resnet101'])  # np.random.choice(['xception', 'resnet18', 'resnet101'])
     num_classes = 13
 
     # Hyperparameters for training:
@@ -18,7 +18,7 @@ class S3DISConfig:
     sigma = 0.02  # np.random.choice([0.02, 0.05, 0.1, 0.5, 1.5, 2.5])
     augment = True  # np.random.choice([True, False])
     bias = False  # np.random.choice([True, False])
-    p = 7  # hilbert order  todo: try different p
+    p = 7
 
     # Training setup:
     max_epochs = 400
