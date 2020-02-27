@@ -31,7 +31,7 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         if backbone == 'resnet101':
             low_level_inplanes = 256
-        elif backbone == 'resnet18':
+        elif backbone == 'resnet18' or 'resnet5':
             low_level_inplanes = 64
         elif backbone == 'xception':
             low_level_inplanes = 128

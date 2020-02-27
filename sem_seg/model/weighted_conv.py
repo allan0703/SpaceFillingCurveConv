@@ -77,7 +77,9 @@ class WeightedConv1D(WeightedConv):
     def forward(self, x, coords=None, sigma=0.08):
         if coords is not None:
             coords = coords.unsqueeze(-1)
-        out = super().forward(x.unsqueeze(-1), coords, sigma)
+        if len(x.shape) <4:
+            x = x.unsqueeze(-1)
+        out = super().forward(x, coords, sigma)
 
         return out.squeeze(-1)
 

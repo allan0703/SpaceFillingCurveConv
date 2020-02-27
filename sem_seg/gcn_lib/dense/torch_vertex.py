@@ -78,7 +78,7 @@ class EdgeConv2d(nn.Module):
         edge_index = remove_self_loops(edge_index)
         x_i = batched_index_select(x, edge_index[1])
         x_j = batched_index_select(x, edge_index[0])
-        max_value, _ = torch.max(self.nn(torch.cat([x_i, x_j - x_i], dim=1)), -1, keepdim=False)
+        max_value, _ = torch.max(self.nn(torch.cat([x_i, x_j - x_i], dim=1)), -1, keepdim=True)
         return max_value
 
 

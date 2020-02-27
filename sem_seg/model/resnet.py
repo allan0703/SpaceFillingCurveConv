@@ -24,7 +24,7 @@ class convKxK(nn.Module):
         self.conv2 = WeightedConv1D(in_planes, out_planes, k, dilation, padding, stride)
 
     def forward(self, x, coords, sigma=0.02, edge_index=None):
-        x = self.conv1(x.unsqueeze(-1), edge_index)
+        x = self.conv1(x.unsqueeze(-1), edge_index).squeeze(-1)
         x = self.conv2(x, coords, sigma)
         return x
 
@@ -147,25 +147,21 @@ class ResNet(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
 
-        # self.knn_graph = DilatedKnn2d(knn, 1, self_loop=False)
-
         self.conv1 = convKxK(input_size, self.inplanes, stride=1, k=9, dilation=1)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
 
-        # self.maxpool = nn.MaxPool1d(kernel_size=9, stride=2, padding=4)
-        # self.sigma *= 4
         self.layer1 = self._make_layer(block, 64, layers[0], k=k, sigma=self.sigma)
         self.layer2 = self._make_layer(block, 128, layers[1], k=k, stride=2,
                                        dilate=replace_stride_with_dilation[0], sigma=self.sigma)
-        self.sigma *= 2
-        self.layer3 = self._make_layer(block, 256, layers[2], k=k, stride=2,
-                                       dilate=replace_stride_with_dilation[1], sigma=self.sigma)
-        self.sigma *= 2
-        self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=2,
-                                       dilate=replace_stride_with_dilation[2], sigma=self.sigma)
-        self.avgpool = nn.AdaptiveAvgPool1d(1)
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        # self.sigma *= 2
+        # self.layer3 = self._make_layer(block, 256, layers[2], k=k, stride=2,
+        #                                dilate=replace_stride_with_dilation[1], sigma=self.sigma)
+        # self.sigma *= 2
+        # self.layer4 = self._make_layer(block, 512, layers[3], k=k, stride=2,
+        #                                dilate=replace_stride_with_dilation[2], sigma=self.sigma)
+        # self.avgpool = nn.AdaptiveAvgPool1d(1)
+        # self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
@@ -211,10 +207,6 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x, coords, edge_index):
-        # print('Size at input: {}'.format(x.size()))
-        # x = self.conv1(x)
-        # edge_index = self.knn_graph(coords)
-        # todo: replace knn_graph by Z-Color SFC neighbors
         x = self.conv1(x, coords, self.init_sigma, edge_index)
         x = self.bn1(x)
         x = self.relu(x)
@@ -228,11 +220,11 @@ class ResNet(nn.Module):
         # edge_index = self.knn_graph(x)
         x, coords, edge_index = self.layer2((x, coords, edge_index))
 
-        # edge_index = self.knn_graph(x)
-        x, coords, edge_index = self.layer3((x, coords, edge_index))
-
-        # edge_index = self.knn_graph(x)
-        x, coords, edge_index = self.layer4((x, coords, edge_index))
+        # # edge_index = self.knn_graph(x)
+        # x, coords, edge_index = self.layer3((x, coords, edge_index))
+        #
+        # # edge_index = self.knn_graph(x)
+        # x, coords, edge_index = self.layer4((x, coords, edge_index))
 
         return x, low_level_feats, coords
 
@@ -240,6 +232,20 @@ class ResNet(nn.Module):
 def _resnet(block, layers, k, **kwargs):
     model = ResNet(block, layers, k, **kwargs)
     return model
+
+
+def resnet5(kernel_size=9, **kwargs):
+    r"""ResNet-18 model from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    """
+    return _resnet(BasicBlock, [1, 1, 0, 0], kernel_size, **kwargs)
+
+
+def resnet10(kernel_size=9, **kwargs):
+    r"""ResNet-18 model from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    """
+    return _resnet(BasicBlock, [1, 1, 1, 1], kernel_size, **kwargs)
 
 
 def resnet18(kernel_size=9, **kwargs):
@@ -277,10 +283,13 @@ if __name__ == '__main__':
     coords = torch.rand((4, 3, 4096), dtype=torch.float).to(device)
     k = 21
 
-    net = resnet101(kernel_size=k, input_size=3, num_classes=40).to(device)
+    knn = DilatedKnn2d(k=9)
+    edge_index = knn(feats)
+
+    net = resnet10(kernel_size=k, input_size=3, num_classes=40).to(device)
 
     start_time = time.time()
-    out, low_level_feats, out_coords = net(feats, coords)
+    out, low_level_feats, out_coords = net(feats, coords, edge_index)
     logging.info('It took {:f}s'.format(time.time() - start_time))
     # out = out.mean(dim=1)
     logging.info('Output size {}'.format(out.size()))

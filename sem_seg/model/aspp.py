@@ -53,13 +53,6 @@ class ASPPPooling(nn.Module):
 class ASPP(nn.Module):
     def __init__(self, in_channels, out_channels, output_stride, kernel_size, sigma):
         super(ASPP, self).__init__()
-        if output_stride == 16:
-            dilations = [6, 12, 18]
-        elif output_stride == 8:
-            dilations = [12, 24, 36]
-        else:
-            raise NotImplementedError
-
         modules = []
 
         self.conv1 = nn.Sequential(
@@ -67,16 +60,13 @@ class ASPP(nn.Module):
             nn.BatchNorm1d(out_channels),
             nn.ReLU())
 
-        modules.append(ASPPConv(in_channels, out_channels, dilations[0], kernel_size, sigma))
-        modules.append(ASPPConv(in_channels, out_channels, dilations[1], kernel_size, sigma))
-        modules.append(ASPPConv(in_channels, out_channels, dilations[2], kernel_size, sigma))
+        modules.append(ASPPConv(in_channels, out_channels, 16, kernel_size, sigma))
 
         self.convs = nn.ModuleList(modules)
-
         self.pool = ASPPPooling(in_channels, out_channels)
 
         self.project = nn.Sequential(
-            nn.Conv1d(5 * out_channels, out_channels, 1, bias=False),
+            nn.Conv1d(3 * out_channels, out_channels, 1, bias=False),
             nn.BatchNorm1d(out_channels),
             nn.ReLU(),
             nn.Dropout(0.5))
