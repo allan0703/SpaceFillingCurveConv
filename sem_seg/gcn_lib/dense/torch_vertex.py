@@ -164,7 +164,6 @@ class GATConv2d(nn.Module):
         return aggr_out
 
 
-
 class GNAConv2d(nn.Module):
     r"""Graph Neighboor Attention Convolution
 
@@ -416,7 +415,7 @@ class GraphConv2d(nn.Module):
         elif conv.lower() == 'gat':
             self.gconv = GATConv2d(in_channels, out_channels, act, norm, bias)
         elif conv.lower() == 'gna':
-            self.gconv = GNAConv2d(in_channels, out_channels, act, norm, bias, aggr)
+            self.gconv = GNAConv2d(in_channels, out_channels, act, norm, bias)
         elif conv.lower() == 'gcn':
             self.gconv = SemiGCNConv2d(in_channels, out_channels, act, norm, bias)
         elif conv.lower() == 'gin':
